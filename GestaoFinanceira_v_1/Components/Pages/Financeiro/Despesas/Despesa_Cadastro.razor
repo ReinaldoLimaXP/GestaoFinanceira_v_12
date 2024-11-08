@@ -1,0 +1,140 @@
+﻿@page "/despesa/cadastro"
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using GestaoFinanceira_v_1.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject FornecedorController _controllerFornecedores
+@inject DespesaController _controllerDespesas
+@inject FuncionarioController _funcionariosController
+@inject NavigationManager NavigationManager
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment env
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<h2><b>Cadastro de Despesas</b></h2>
+<h4>Cadastre uma nova despesa e mantenha seus dados atualizados</h4>
+
+<EditForm Model="despesa" OnValidSubmit="Cadastrar">
+	<DataAnnotationsValidator />
+	<hr />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-2">
+			<label>Data: </label>
+			<InputDate disabled id="dataDespesa" @bind-Value="despesa.Datalacamento" class="form-control" />
+		</div>
+		<div class="form-group col-md-1">
+		</div>
+		<div class="form-group col-md-2">
+			<label>Status: </label>
+			<InputText disabled type="text" placeholder="" class="form-control" @bind-Value="despesa.Status_des" />
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-5">
+			<label>Fornecedor: *</label>
+			<InputSelect @bind-Value="despesa.Fk_id_fornecedor" class="form-select">
+				<option value="">--Selecionar--</option>
+				@foreach (var fornec in ListaFornecesores)
+				{
+					<option value="@fornec.Id_fornecedor">@fornec.Nome_fantasia</option>
+				}
+			</InputSelect>
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-5">
+			<label>Descrição : *</label>
+			<InputText  type="text" placeholder="" class="form-control" @bind-Value="despesa.Descricao" />
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-2">
+			<label>Valor : *</label>
+			<InputText onkeyup="moedaFormat(this);" id="valorEstimado" placeholder=" Ex. R$ 100,00"
+					   @bind-Value="ValorDespesa" class="form-control" />
+		</div>
+		<div class="form-group col-md-1">
+		</div>
+		<div class="form-group col-md-2">
+			<label>Vencimento : *</label>
+			<InputDate id="dataDespesa" @bind-Value="despesa.Vencimento" class="form-control" />
+		</div>
+	</div>
+	<br />
+	<div class="form-group">
+		<a href="/despesas">
+			<button type="button" class="btn btn-danger">
+				Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+			</button>
+		</a>
+		<button type="submit" class="btn btn-success">
+			Salvar &nbsp <i class="fa fa-save"></i>
+		</button>
+	</div>
+</EditForm>
+
+
+@code {
+	string mensagem = "";
+	public Despesa despesa = new Despesa();
+	string ValorDespesa;
+	List<Fornecedor> ListaFornecesores { get; set; } = new List<Fornecedor>();
+	ApplicationUser? usuario = new ApplicationUser();
+	Funcionario funcionario = new Funcionario();
+	protected override async Task OnInitializedAsync()
+	{
+		try
+		{
+			/*Pegar o funcionário logado*/
+			string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+			//var id_fun = HttpContext.User.FindFirst("Id_funcionario").Value;
+			usuario = await UserManager.FindByIdAsync(IdLogado);
+			funcionario = await _funcionariosController.BuscarIDAwait(usuario.Id_funcionario);
+			ListaFornecesores = await _controllerFornecedores.ListarFornecedoresawait();
+		}catch(Exception ex)
+		{
+			statusMensagem.ShowModal("Erro", "Erro ao abrir o cadastro de despesa: " + ex.Message);
+		}
+
+	}
+
+	public async Task Cadastrar()
+	{
+		try
+		{
+			despesa.Fk_id_empresa = funcionario.Fk_id_empresa;
+			despesa.Valor = double.Parse(ValorDespesa);
+			despesa.HoraLacamento = DateTime.Now.TimeOfDay;
+			await _controllerDespesas.Salvar(despesa);
+			statusMensagem.ShowModal("Cadastro", "Despesa cadastrada com sucesso!");
+		}
+		catch (Exception ex)
+		{
+			statusMensagem.ShowModal("Erro", "Erro ao cadastrar a despesa: " + ex.Message);
+		}
+	}
+
+
+	private IJSObjectReference? jsModule;
+	async ValueTask IAsyncDisposable.DisposeAsync()
+	{
+		if (jsModule is not null)
+		{
+			await jsModule.DisposeAsync();
+		}
+	}
+
+	protected StatusMensagem statusMensagem = new StatusMensagem();
+	protected void ConfirmarMensagem(bool confirm)
+	{
+		NavigationManager.NavigateTo("despesas");
+	}
+}
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

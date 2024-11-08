@@ -1,0 +1,123 @@
+﻿@page "/planos/cadastro"
+@inject PlanoContasController _planosController
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Planos</PageTitle>
+
+<h1><b>Cadastre um novo plano de contas e matenha seus dados atualizados</b></h1>
+<hr />
+
+<EditForm Model="@planoC" OnValidSubmit="@Cadastrar" method="post" FormName="cad_planos">
+	<ObjectGraphDataAnnotationsValidator/>
+    <div class="input-group col-md-12">
+		<div class="form-group col-md-2">
+			<label>Código: *</label>
+			<InputText id="codigo" @bind-Value="planoC.Codigo" class="form-control" />
+		</div>
+		&nbsp   &nbsp
+		<div class="form-group col-md-4">
+			<label>Descrição: *</label>
+			<InputText id="descricaiPla" @bind-Value="planoC.Descricao" class="form-control" />
+			
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-12">
+		<div class="form-group col-md-2">
+			<label>Abreviatura: *</label>
+			<InputText id="abreviacao" @bind-Value="planoC.Abreviatura" class="form-control" />
+		</div>
+		&nbsp   &nbsp
+		<div class="form-group col-md-3">
+			<label>Natureza da Conta: *</label>
+			<InputSelect @bind-Value="planoC.NaturezaConta" class="form-select">
+				<option value="">--Selecionar--</option>
+				@foreach (var situacao in Enum.GetValues(typeof(NaturezaConta)))
+				{
+					<option value="@situacao">@situacao</option>
+				}
+			</InputSelect>
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-12">
+		<div class="form-group col-md-6">
+			<label>Observação: *</label>
+			<InputText id="observacoesPla" @bind-Value="planoC.Observacoes" class="form-control" />
+		</div>
+	</div>
+	<br />
+	<div class="form-group">
+		<a href="/planos">
+			<button type="button" class="btn btn-danger bi bi-searche">
+				Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+			</button>
+		</a>
+
+		<button type="submit" class="btn btn-success create">
+			Salvar &nbsp <i class="fa fa-save"></i>
+		</button>
+		<!--<input type="submit" value="Cadastrar"  class="btn btn-success create bi bi-search"/>-->
+	</div>
+</EditForm>
+
+@code {
+	PlanoDeContas planoC = new PlanoDeContas();
+	string mensagem = "";
+
+	public void Cadastrar()
+	{
+		try
+		{
+			_planosController.Salvar(planoC);
+			mensagem = "Plano de conta cadastrado com sucesso!";
+			JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+		}catch(Exception ex)
+		{
+			statusMensagem.ShowModal("Erro", "Erro ao cadastrar o plano de conta, verifique se o código cadastrado já existe.");
+		}
+	}
+
+	private void fecharModal(string elementoID)
+	{
+		planoC = new PlanoDeContas();
+		JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+	}
+
+	private IJSObjectReference? jsModule;
+	async ValueTask IAsyncDisposable.DisposeAsync()
+	{
+		if (jsModule is not null)
+		{
+			await jsModule.DisposeAsync();
+		}
+	}
+
+	public enum NaturezaConta { Crédito, Débito }
+
+	protected StatusMensagem statusMensagem = new StatusMensagem();
+	protected void ConfirmarMensagem(bool confirm) { }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+
+<div class="modal fade show" id="myModal" style="display:none; background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Cadastro!</h5>
+			</div>
+			<div class="modal-body">
+				<p>@mensagem</p>
+			</div>
+			<div class="modal-footer">
+				<a href="planos"><button type="button" class="btn btn-primary">Voltar a lista</button></a>
+				<button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("myModal")'>Novo</button>
+			</div>
+		</div>
+	</div>
+</div>

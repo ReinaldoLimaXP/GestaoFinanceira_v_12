@@ -1,0 +1,82 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Identity
+@using GestaoFinanceira_v_1.Data
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Utilitarios
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject UserManager<ApplicationUser> UserManager
+@inject FuncionarioController _controllerFuncionario
+@inject Cabecalho cabecalho
+
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <div class="form-group col-md-8">
+                <!-- Conteúdo adicional pode ser adicionado aqui -->
+                @ConteudoAdicional
+            </div>
+            <div class="form-group col-md-4 d-flex flex-column align-items-end">
+                <a href="/Account/Manage">
+                    <img class="iconeUsuario rounded-circle" src="@imagem" alt="Usuário" />
+                </a>
+                <a href="/Account/Manage" class="mt-2">
+                    <label class="nomeUsuario"> @user</label>
+                </a>
+            </div>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+
+</div>
+
+<div id="blazor-error-ui">
+    Ocorreu um erro não tratado.
+    <a href="" class="reload">Recarregar</a>
+    <a class="dismiss">🗙</a>
+</div>
+@code {
+    [Parameter] public string ConteudoAdicional { get; set; }
+    private string user = "";
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+    private Funcionario funcionario = new Funcionario();
+    string imagem = "imagensClientes/camera.png";
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+
+            if (HttpContext.User.Identity.IsAuthenticated)
+            {
+                //var users = UserManager.FindByIdAsync(HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                //user = "";
+                user = HttpContext.User.FindFirst("Nome_Usuario").Value;
+                var id_fun = HttpContext.User.FindFirst("Id_funcionario").Value;
+                int t = int.Parse(id_fun);
+                funcionario = _controllerFuncionario.BuscarID(t);
+                imagem = funcionario.Foto;
+            }
+            cabecalho.Title = "Menu Inicial";
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+
+        }
+        base.OnInitialized();
+    }
+
+    public void Dispose()
+    {
+        cabecalho.OnChange -= StateHasChanged;
+    }
+}

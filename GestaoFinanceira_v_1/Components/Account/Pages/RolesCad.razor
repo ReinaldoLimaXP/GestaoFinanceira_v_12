@@ -1,0 +1,178 @@
+﻿@page "/Account/Roles"
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using GestaoFinanceira_v_1.Data
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject RoleManager<IdentityRole> RolerManager
+@rendermode InteractiveServer
+@inject ApplicationDbContext _contexto
+
+
+<PageTitle>Registro</PageTitle>
+
+<h1>Cadastro de Usuário</h1>
+
+<div class="row">
+    <div class="col-md-12">
+       
+        <EditForm Model="Entrada" method="post" OnValidSubmit="RegisterRoles" FormName="register">
+            <DataAnnotationsValidator />
+            <hr />
+            <!--<ValidationSummary class="text-danger" role="alert" />-->
+            <div class="form-floating col-md-9">
+                <InputText @bind-Value="Entrada.RoleName" class="form-control" autocomplete="RoleName" aria-required="true" placeholder="" />
+                <label for="email">Nome do Perfil *</label>
+                <ValidationMessage For="() => Entrada.RoleName" class="text-danger" />
+            </div>
+            <br/>
+            
+            <a href="">
+                <button type="button" class="btn btn-danger bi bi-searche">
+                    Cancelar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                </button>
+            </a>
+            <button type="submit" class="btn btn-success create">
+                Salvar &nbsp <i class="fa fa-save"></i>
+            </button>
+        </EditForm>
+    </div>
+    
+</div>
+<br/>
+<table class="table table-sm table-responsive-sm row-cols-md-4">
+        <thead>
+            <tr>
+                <th>Perfil</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (IdentityRole ro in ListaRoles)
+        {
+            <tr>
+                <td>@ro.Name</td>
+                <td>
+                    @if (UserRoles(ro.Id).Count <= 0)
+                    {
+                        <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(ro.Id)'><i class="bi bi-trash3-fill"></i></button>
+                    }
+                    else
+                    {
+                        <button disabled class="btn btn-danger"><i class="bi bi-trash3-fill"></i></button>
+                    }
+
+                </td>
+            </tr>
+        }
+        </tbody>
+</table>
+
+
+@code {
+    private IEnumerable<IdentityError>? identityErrors;
+    [SupplyParameterFromForm]
+    private EntradaRole Entrada { get; set; } = new();
+
+    private string? Message { get; set; }
+
+    string mensagemErro = "";
+
+    List<IdentityRole> ListaRoles { get; set; }
+    protected override void OnInitialized()
+    {
+
+        //var roles =  RolerManager.Roles;
+        ListaRoles = RolerManager.Roles.ToList();
+
+    }
+
+    public List<IdentityUserRole<string>> UserRoles(string idRole)
+    {
+        /*Ainda tem um bug quando excluir uma role*/
+        try
+        {
+            List<IdentityUserRole<string>> listaUser = _contexto.UserRoles.Where(x => x.RoleId == idRole).ToList();
+            return listaUser;
+        }
+        catch (Exception)
+        {
+            List<IdentityUserRole<string>> listaUser = new List<IdentityUserRole<string>>();
+            return listaUser;
+        }
+    }
+
+    protected void RegisterRoles(EditContext editContext)
+    {
+        var roles = new IdentityRole() { Name = Entrada.RoleName };
+        var result =  RolerManager.CreateAsync(roles).Result;
+        if (!result.Succeeded)
+        {
+            MensagemModal("Erro", "Erro ao salvar o perfil!");;
+        }
+        else
+        {
+            ListaRoles.Add(roles);
+            MensagemModal("Cadastro", "Perfil salvo com sucesso!");
+            Entrada = new EntradaRole();
+        }
+
+    }
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    IdentityRole? roleExcluir = new IdentityRole();
+    protected void ExibirmodalExcluir(string roleID)
+    {
+
+        roleExcluir = ListaRoles.FirstOrDefault(x => x.Id == roleID);
+       // _contexto.App
+        confirmar.ShowModalConfirmacao("Você tem certeza que deseja excluir o perfil " + roleExcluir.Name);
+    }
+
+    protected void ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                //Implementar verificação se tem usuário nessa role
+               
+                    var result = RolerManager.DeleteAsync(roleExcluir);
+                    ListaRoles.Remove(roleExcluir);
+                                
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = "Ocorreu um erro ao excluir o perfil";
+
+        }
+    }
+
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+     */
+    protected void ConfirmarMensagem(bool confirm){}
+
+    private sealed class EntradaRole
+    {
+        [Required(ErrorMessage = "Informe o perfil")]
+        [Display(Name = "Role")]
+        public string RoleName { get; set; } = "";
+    }
+}
+
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+<!--Fazer o ErroStatus ficar receberndo parâmetros-->

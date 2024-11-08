@@ -1,0 +1,99 @@
+﻿@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@inject FuncionarioController _funcionariosController
+@inject CaixaController _caixaController
+@rendermode InteractiveServer
+
+
+<div class="modal fade show" id="modalCaixa" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #898686;">
+                <h4 class="modal-title text-white">
+                    <strong>
+                        &nbsp <i class="bi bi-book"></i>
+                        &nbsp   &nbsp  Recebimento da Venda
+                    </strong>
+                </h4>
+                <button type="button" @onclick='eventArgs=>EscolharModal(false)' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<bool> UserChouse { get; set; }
+
+    
+
+    public void ShowModalCaixa()
+    {
+        JSRuntime.InvokeAsync<string>("modal.showModal", "modalCaixa");
+        
+    }
+
+    private async void  Cadastrar_Caixa()
+    {
+        try
+        {
+            
+        }catch(Exception)
+        {
+        }
+    }
+
+    
+
+    /*Esse método é responsável por receber a ação do modal e retornar o 
+     * item escolhido para a página de origem. Nesse componte, é usado para fechar a página sem salvar*/
+    public void EscolharModal(bool valor)
+    {
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalCaixa");
+        UserChouse.InvokeAsync(valor);
+    }
+
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+    */
+    protected void ConfirmarMensagem(bool confirm)
+    {
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" Titulo="Cadastro"/>

@@ -1,0 +1,113 @@
+﻿@page "/relatorios/relatoriopag"
+@using System.ComponentModel.DataAnnotations;
+@using System.ComponentModel.DataAnnotations.Schema
+@using GestaoFinanceira_v_1.Components.Shared
+@using GestaoFinanceira_v_1.Utilitarios
+@inject FuncionarioController _funcionarioController
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+
+<div>
+    <div class="col-md-8">
+        <h2><b>Relatórios de Pagamentos</b></h2>
+        <h4>Preencha os dados para a emissão do relatório.</h4>
+        <hr />
+        <EditForm Model="@e" OnValidSubmit="Emitir" FormName="Cad_venda">
+                <DataAnnotationsValidator />
+            <strong>Período *</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-6">
+                    <label>Data Início *: </label>
+                    <InputDate id="dataVenda" @bind-Value="e.DataInicio" class="form-control" />
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Data Final *: </label>
+                    <InputDate id="horaVenda" @bind-Value="e.DataFim" class="form-control" />
+                </div>
+            </div>
+            <br />
+            <strong>Tipo de Operação*: </strong>
+            <hr />
+            <div class="row">
+                    <InputRadioGroup  Name="formaPag" @bind-Value="e.Tipo">
+                    @foreach (var cat in categoria)
+                        {
+                            <div class="form-group col-md-6">
+                            <InputRadio class="form-check-input cursorpointer" id="@cat" Value="cat" />
+                            <label class="cursorpointer" for="@cat">@cat.</label>
+                            </div>
+                        }
+                    </InputRadioGroup>
+            </div>
+            <br />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <strong>Tipo *: </strong>
+                    <InputSelect @bind-Value="e.Formato" id="formato" class="form-select">
+                        <option value="">Selecionar</option>
+                        <option value="1">Resumido</option>
+                        <option value="2">Completo</option>
+                    </InputSelect>
+                </div>
+            </div>
+            <br />
+           
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <a href="/relatorios">
+                        <button type="button" class="btn btn-danger">
+                            Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                        </button>
+                    </a>
+                    <button type="submit" style="float:right" class="btn btn-secondary">
+                        Emitir &nbsp <i class="bi bi-file-earmark-text"></i>
+                    </button>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    RelPagamento e = new RelPagamento();
+    protected override async Task OnInitializedAsync()
+    {
+        e.Tipo = "Pagamentos";
+    }
+    private List<string> categoria { get; set; } = new List<string>() { "Pagamentos", "Despesas em Aberto" };
+
+
+    public async Task Emitir()
+    {
+
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+    internal class RelPagamento
+    {
+        [Required]
+        public DateOnly DataInicio { get; set; }
+        [Required]
+        public DateOnly DataFim { get; set; }
+        [Required]
+        public int? Formato { get; set; }
+
+        public string? Tipo { get; set; }
+
+        public RelPagamento()
+        {
+            DataInicio = DateOnly.FromDateTime(DateTime.Now);
+            DataFim = DateOnly.FromDateTime(DateTime.Now);
+        }
+    }
+}

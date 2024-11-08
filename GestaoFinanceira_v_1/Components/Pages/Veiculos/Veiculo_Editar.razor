@@ -1,0 +1,353 @@
+﻿@page "/veiculo/editar/{id_veiculo:int}"
+@inject HttpClient http
+@using GestaoFinanceira_v_1.Utilitarios;
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment env
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+@inject VeiculoController _veiculosController
+@inject CMCControllers _CMCController
+@inject ClientePFsController _clientePFsController
+@inject ClientePJsController _clientePJsController
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<h2><b>Cadastro de Veículos</b></h2>
+<h4>Cadastre um novo veículo e mantenha seus dados atualizados</h4>
+<hr />
+<EditForm Model="@veiculo" OnValidSubmit="@Atualizar">
+    <DataAnnotationsValidator />
+    <div class="row">
+        <div class="form-group col-md-2">
+            <label>Placa: *</label>
+            <!--<div class="col-sm-2">-->
+            <InputText id="placa" oninput="this.value=this.value.toUpperCase()" class="form-control" placeholder="" @bind-Value="veiculo.Placa_vei" />
+
+        </div>
+        
+        <div class="form-group col-md-1">
+            <br />
+            <button type="button" class="btn btn-secondary">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+       
+        <div class="form-group col-md-3">
+            <label>Ano Modelo/Fabricação: *</label>
+            <!--<div class="col-sm-2">-->
+            <InputText id="fabicacao" class="form-control" placeholder="" @bind-Value="veiculo.Ano_vei" />
+        </div>
+
+        
+        <div class="form-group col-md-3">
+            <label>Modelo: *</label>
+            <!--<div class="col-sm-2">-->
+            <InputText id="modelo" class="form-control" placeholder="Ex. Celta LT 1.0" @bind-Value="veiculo.Modelo_vei" />
+        </div>
+
+        <div class="form-group col-md-3">
+            <label>Marca: </label>
+            <InputSelect id="marca" @bind-Value="veiculo.fk_id_marca" class="form-select">
+                <option value="0">--Selecionar--</option>
+                @if (marcasVeiculosList == null)
+                {
+                    <option value="0"> nenhuma cidade </option>
+                }
+                else
+                {
+                    @foreach (MarcaVeiculos marca in marcasVeiculosList)
+                    {
+                        <option value="@marca.Id_marca"> @marca.NomeMarca </option>
+                    }
+                }
+            </InputSelect>
+        </div>
+    </div>
+
+    <br />
+
+    <div class="row">
+        <div class="form-group col-md-2">
+            <label>Cor: </label>
+            <InputSelect id="cores" @bind-Value="veiculo.fk_id_cor" class="form-select">
+                <option value="">--Selecionar--</option>
+                @if (coresList == null)
+                {
+                    <option value="0"> nenhuma cor </option>
+                }
+                else
+                {
+                    @foreach (Cores cor in coresList)
+                    {
+                        <option value="@cor.Id_cor"> @cor.NomeCor </option>
+                    }
+                }
+            </InputSelect>
+        </div>
+
+        <div class="form-group col-md-4">
+            <label>Categoria: </label>
+            <InputSelect id="categoria" @bind-Value="veiculo.fk_id_categoria" class="form-select">
+                <option value="0">--Selecionar--</option>
+                @if (categoriasList == null)
+                {
+                    <option value="0"> nenhuma cor </option>
+                }
+                else
+                {
+                    @foreach (CategoriaVeiculos categoria in categoriasList)
+                    {
+                        <option value="@categoria.Id_categoria"> @categoria.NomeCategoria </option>
+                    }
+                }
+            </InputSelect>
+        </div>
+
+        <div class="form-group col-md-4">
+            <label>Chassis: </label>
+            <InputText id="chassis" class="form-control" placeholder="" @bind-Value="veiculo.Classis_vei" />
+            <label class="text-danger">@labelCassis</label>
+        </div>
+
+        <div class="form-group col-md-2">
+            <label>Renavan: </label>
+            <InputText id="renavam" class="form-control" placeholder="" @bind-Value="veiculo.Renavan_vei" />
+            <label class="text-danger">@labelRenavan</label>
+        </div>
+    </div>
+    <br />
+
+    <div class="row">
+        <div class="form-group col-md-4">
+            <label>Vincular a Cliente: *</label>
+            <InputSelect id="vinculo" @bind-Value="veiculo.Vincular_cli" class="form-select">
+                <option value="">--Selecionar--</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+            </InputSelect>
+        </div>
+        @if (veiculo.Vincular_cli == "sim")
+        {
+            <div class="form-group col-md-4">
+                <label>Tipo de Cliente:</label>
+                <InputSelect id="tipo" @bind-Value="tipo" class="form-select" onclick="@SelectTipo">
+                    <option value="">--Selecionar--</option>
+                    <option value="pf">Pessoa Física</option>
+                    <option value="pj">Pessoa Jurídica</option>
+                </InputSelect>
+            </div>
+
+            <div class="form-group col-md-4">
+                <label>Cliente:</label>
+                <InputSelect id="clienteSelect" @bind-Value="veiculo.Fk_id_cliente" class="form-select">
+                    <option value="">--Selecionar--</option>
+                    @if (clientesList == null)
+                    {
+
+                    }
+                    else
+                    {
+                        @foreach (Cliente cliente in clientesList)
+                        {
+                            @if (cliente is ClientePF)
+                            {
+                                ClientePF pf = cliente as ClientePF;
+                                <option value="@pf.Id_cliente"> @pf.Nome_cli</option>
+                            }
+                            else if (cliente is ClientePJ)
+                            {
+                                ClientePJ pj = cliente as ClientePJ;
+                                <option value="@pj.Id_cliente"> @pj.RazaoSocial_PJ</option>
+                            }
+                        }
+                    }
+                </InputSelect>
+            </div>
+        }
+
+    </div>
+
+    <br />
+    <div class="form-group">
+        <a href="/veiculos">
+            <button type="button" class="btn btn-danger bi bi-searche">
+                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+            </button>
+        </a>
+        <div class="float-end">
+            <button type="submit" class="btn btn-success create">
+                Salvar &nbsp <i class="fa fa-save"></i>
+            </button>
+        </div>
+        <!--<input type="submit" value="Cadastrar"  class="btn btn-success create bi bi-search"/>-->
+    </div>
+    <br />
+    <br />
+</EditForm>
+@code {
+    [Parameter]
+    public int id_veiculo { get; set; }
+
+    string tipo = "";
+    Veiculo veiculo = new Veiculo();
+    private IJSObjectReference? jsModule;
+
+    List<MarcaVeiculos> marcasVeiculosList { get; set; }
+    List<Cores> coresList { get; set; }
+    List<CategoriaVeiculos> categoriasList { get; set; }
+    List<ClientePF> clientesPFList { get; set; }
+    List<ClientePJ> clientePJsList { get; set; }
+    List<Cliente> clientesList { get; set; }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try{
+            veiculo = await _veiculosController.BuscarIdWait(id_veiculo);
+            marcasVeiculosList = await _CMCController.ListarMarcasWait();
+            coresList = await _CMCController.ListarCoresWait();
+            categoriasList = await _CMCController.ListarCategoriaswait();
+
+            clientesPFList = await _clientePFsController.listarTodos();
+            clientePJsList = await _clientePJsController.listarTodos();
+            clientesList = new List<Cliente>();
+            clientesList.AddRange(clientesPFList);
+            clientesList.AddRange(clientePJsList);
+
+            
+            veiculo.Vincular_cli = "nao";
+            if (veiculo.Cliente is not null)
+            {
+                veiculo.Vincular_cli = "sim";                
+            }
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao abrir a edição " + ex.Message);
+        }
+        
+        
+        
+    }
+
+
+    private async Task Atualizar()
+    {
+        try
+        {
+            if(veiculo.Vincular_cli != "sim")
+            {
+                veiculo.Cliente= null;
+            }else
+            {
+                veiculo.Cliente = clientesList.FirstOrDefault(x => x.Id_cliente == veiculo.Fk_id_cliente);
+            }
+            veiculo.Cor_vei = coresList.FirstOrDefault(x => x.Id_cor == veiculo.fk_id_cor);
+
+            veiculo.Marca_vei = marcasVeiculosList.FirstOrDefault(x => x.Id_marca == veiculo.fk_id_marca);
+
+
+            veiculo.Categoria_vei = categoriasList.FirstOrDefault(x => x.Id_categoria == veiculo.fk_id_categoria);
+
+
+            await _veiculosController.AtualizarVeiculoAsync(veiculo);
+            MensagemModal("Atualização", "Veículo atualizado com sucesso!");
+        }
+        catch (Exception)
+        {
+            MensagemModal("Erro", "Erro ao salvar o veículo!");
+        }
+    }
+
+    private void SelectTipo()
+    {
+        if (tipo == "pf")
+        {
+            clientesList.Clear();
+            clientesList.AddRange(clientesPFList);
+        }
+        else if (tipo == "pj")
+        {
+            clientesList.Clear();
+            clientesList.AddRange(clientePJsList);
+        }
+        else
+        {
+            clientesList.Clear();
+            clientesList.AddRange(clientesPFList);
+            clientesList.AddRange(clientePJsList);
+        }
+    }
+
+
+    string labelCassis = "";
+    private void ValidarChassis()
+    {
+        ValidarChassis validar = new ValidarChassis();
+        bool valido = validar.IsValid(veiculo.Classis_vei);
+        if (valido == true)
+        {
+            labelCassis = "";
+        }
+        else
+        {
+            labelCassis = "Chassis inválido";
+        }
+    }
+
+    string labelRenavan = "";
+    private void ValidarRenavan()
+    {
+        ValidarRenavan validar = new ValidarRenavan();
+        bool valido = validar.IsValid(veiculo.Renavan_vei);
+        if (valido == true)
+        {
+            labelRenavan = "";
+        }
+        else
+        {
+            labelRenavan = "Renavan inválido";
+        }
+    }
+
+ 
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+    */
+    protected void ConfirmarMensagem(bool confirm)
+    {
+        NavigationManager.NavigateTo("/veiculos");
+    }
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JSRuntime.InvokeAsync<string>("masksPlaca.mascaraPlaca", null);
+            await JSRuntime.InvokeAsync<string>("masksAnofab.mascaraAnofab", null);
+        }
+        catch (Exception)
+        {
+
+        }
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}
+
+<!--Realiza a incorporação do modal de mensagem-->
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+

@@ -1,0 +1,281 @@
+﻿@page "/empresas"
+@using Microsoft.EntityFrameworkCore
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+@inject EmpresaController _empresasController
+@rendermode InteractiveServer
+
+<PageTitle>Empresas</PageTitle>
+
+<h1><b>Consulta de Empresas</b></h1>
+<hr />
+
+<p>Consulte uma empresa cadastrado no sistema e utilize as opções disponíveis</p>
+
+
+<div class="input-group col-md-12">
+
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown="@Enter" @onkeyup="@Enter"
+        @onkeypress="@Enter"/>
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="zerar">--Selecionar--</option>
+            <option value="nome">Fantasia</option>
+            <option value="tipo">Razão Social</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn-ordem btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-1">
+        <br />
+        <a href="/empresa/cadastro">
+            <button style="z-index:0;" class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+            Novo <i class="bi bi-plus-circle"></i>
+        </button>
+        </a>
+    </div>
+</div>
+
+<br />
+
+
+@if ((listaEmpresa == null || listaEmpresa.Count <= 0) && busca == "")
+{
+    <p><em>Carregando as empresas...</em></p>
+    
+}
+else
+{
+    <!--table table-striped table-bordered table-sm-->
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Razão Social</th>
+                <th>Fantasia</th>                
+                <th>CNPJ</th>
+                <th>Telefone</th>                
+                <th>E-mail</th>
+                <th>Responsável</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Empresa empresa in listaEmpresa)
+            {
+                <tr>
+                    <td>@empresa.Razao_social</td>
+                    <td>@empresa.Nome_fantasia </td>
+                    <td>@empresa.Cnpj </td>
+                    <td>@empresa.Telefone1 </td>
+                    <td>@empresa.Email </td>
+                    <td>@empresa.Responsavel </td>
+
+                    <td>
+                        <td>
+                            <a href="/empresa/imprimir/@empresa.Id_empresa">
+                                <button class="btn-ordem btn-olho btn">
+                                    <i class="bi bi-eye-fill"></i>
+                                </button>
+                            </a>
+                        </td>
+                        <td>
+                            <a href="/empresa/editar/@empresa.Id_empresa">
+                                <button class="btn-ordem btn btn-primary"> 
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </a>
+                        </td>
+                        <td>
+                            <button class="btn-ordem btn btn-danger" @onclick='() => Exibirmodal(empresa.Id_empresa,"exampleModal")'>
+                                <i class="bi bi-trash3-fill"></i>
+                            </button>
+                        </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<Empresa> listaEmpresa { get; set; }
+    List<Empresa> listaEmpresa2 { get; set; }
+    string filtro = "zerar", busca = "";
+    string mensagemErro = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try{
+            listaEmpresa = new List<Empresa>();
+            listaEmpresa2 = new List<Empresa>();
+            listaEmpresa.Clear();
+            listaEmpresa = _empresasController.listarTodos();
+            listaEmpresa2.AddRange(listaEmpresa);
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", "Erro ao listar as empresas!");
+        }
+    }
+
+    private async Task Filtrar()
+    {
+        listaEmpresa.Clear();
+        listaEmpresa.AddRange(listaEmpresa2);
+        try
+        {
+            if (filtro == "tipo")
+            {
+                List<Empresa> listaEmpresaF = listaEmpresa.Where<Empresa>(x => x.Nome_fantasia.ToLower().Contains(busca.ToLower())).ToList();
+                listaEmpresa.Clear();
+                listaEmpresa.AddRange(listaEmpresaF);
+            }
+            else
+            {
+                List<Empresa> listaEmpresaT = listaEmpresa.Where<Entidades.Empresa>(x => x.Razao_social.ToLower().Contains(busca.ToLower())).ToList();
+                listaEmpresa.Clear();
+                listaEmpresa.AddRange(listaEmpresaT);
+            }
+        }
+        catch (Exception ex)
+        {
+            
+        }
+    }
+
+    public void Enter(KeyboardEventArgs e)
+    {
+        this.Filtrar();
+    }
+
+    private void CheckChanged()
+    {
+        this.Filtrar();
+    }
+
+    Empresa empresaExcluir = new Empresa();
+    protected async Task Delete()
+    {
+        try
+        {
+            await _empresasController.Deletar(empresaExcluir.Id_empresa);
+            listaEmpresa.Remove(empresaExcluir);
+            await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "exampleModal");
+            mensagemErro = "";
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "exampleModal");
+            statusMensagem.ShowModal("Erro", ex.Message);
+        }
+    }
+
+    
+    public async void Exibirmodal(int id_empresa, string elementoID)
+    {
+        try
+        {
+            empresaExcluir = listaEmpresa.SingleOrDefault(x => x.Id_empresa == id_empresa);
+            if (empresaExcluir != null)
+            {
+                await JSRuntime.InvokeAsync<string>("modal.showModal", elementoID);
+            }
+
+        }
+        catch (Exception ex)
+        {
+            //await JSRuntime.InvokeAsync<string>("modal.showModal", elementoID);
+        }
+    }
+
+    private IJSObjectReference module;
+    private async void showModal(string elementoID)
+    {
+        if (module != null)
+        {
+            await JSRuntime.InvokeAsync<string>("modal.showModal", elementoID);
+        }
+        else
+        {
+            //module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "script/modal.js");
+            await JSRuntime.InvokeAsync<string>("modal.showModal", elementoID);
+        }
+    }
+
+    private async void fecharModal(string elementoID)
+    {
+        await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+    }
+
+    private IJSObjectReference? jsModule;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+               "import", "/script/mascaras.js");
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                "import", "/script/modal.js");
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                "import", "/script/eventosimg.js");
+
+                await JSRuntime.InvokeAsync<string>("masksCPF.mascaraCPF", null);
+                await JSRuntime.InvokeAsync<string>("masksTel.mascaratel", null);
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+
+<div class="modal fade show" id="exampleModal" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Excluir!</h5>
+                <button type="button" @onclick='eventArgs=>fecharModal("exampleModal")' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Você tem certeza que deseja excluir a empresa ?</p>
+                <p>@mensagemErro</p>
+            </div>
+            <div class="modal-footer">
+                <a href="empresas"><button type="button" class="btn btn-danger" @onclick="@Delete">Sim</button></a>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("exampleModal")'>Não</button>
+            </div>
+        </div>
+    </div>
+</div>

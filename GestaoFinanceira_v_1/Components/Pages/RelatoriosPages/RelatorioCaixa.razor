@@ -1,0 +1,240 @@
+﻿@page "/relatorios/relatorioCaixa"
+@using System.ComponentModel.DataAnnotations;
+@using System.ComponentModel.DataAnnotations.Schema
+@using GestaoFinanceira_v_1.Components.Shared
+@using GestaoFinanceira_v_1.Utilitarios
+@using GestaoFinanceira_v_1.Components.Account;
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@using GestaoFinanceira_v_1.Data
+@using GestaoFinanceira_v_1.Components.Account.Pages.Manage
+
+@inject FuncionarioController _funcionarioController
+@inject CaixaController _caixas
+@inject NavigationManager nav
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityUserAccessor UserAccessor
+@inject IdentityRedirectManager RedirectManager
+
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+
+<script>
+    function NovaGuia(url) {
+        window.open(url, '_blank');
+    }
+</script>
+<div>
+    <div class="col-md-8">
+        <h2><b>Relatórios de Caixas</b></h2>
+        <h4>Preencha os dados para a emissão do relatório.</h4>
+        <hr />
+
+        <EditForm Model="@v" OnValidSubmit="Emitir" FormName="Cad_venda">
+            <DataAnnotationsValidator />
+            <strong>Tipo de Caixa *</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <label>Caixa *: </label>
+                    <InputSelect @bind-Value="v.TipoCaixa" id="formato" class="form-select">
+                        <option value="">Selecionar</option>
+                        <option value="1">Operacional</option>
+                        <option value="2">Banco</option>
+                    </InputSelect>
+                </div>
+            </div>
+            <br />
+            <strong>Período *</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-6">
+                    <label>Data Início *: </label>
+                    <InputDate id="dataVenda" @bind-Value="v.DataInicio" class="form-control" />
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Data Final *: </label>
+                    <InputDate id="horaVenda" @bind-Value="v.DataFim" class="form-control" />
+                </div>
+            </div>
+            <br />
+            <strong>Responsável</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <label>Funcionário *: </label>
+                    <InputSelect @bind-Value="v.Fk_id_funcionario" id="formato" class="form-select">
+                        <option value="">Selecionar</option>
+                        @if (Listafuncionarios != null)
+                        {
+                            @foreach (Funcionario f in Listafuncionarios)
+                            {
+                                <option value="@f.Id_funcionario"> @f.Nome_completo</option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+            <br />
+            <strong>Responsável</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-6">
+                    <label>Formato *: </label>
+                    <InputSelect @bind-Value="v.Formato" id="formato" class="form-select">
+                        <option value="">Selecionar</option>
+                        <option value="1">Resumido</option>
+                        <option value="2">Completo</option>
+                    </InputSelect>
+                </div>
+                <div class="form-group col-md-6">
+                    <br />
+                    @if (v.Formato == 2)
+                    {
+                        <input class="form-check-input" type="checkbox" @bind-value="v.isChecked" id="che">
+                        <label class="form-check-label" for="che">
+                            Incluir Movimentação a Prazo?
+                        </label>
+                    }
+                </div>
+            </div>
+            <br />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <a href="/relatorios">
+                        <button type="button" class="btn btn-danger">
+                            Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                        </button>
+                    </a>
+                    <button type="submit" style="float:right" class="btn btn-secondary">
+                        Emitir &nbsp <i class="bi bi-file-earmark-text"></i>
+                    </button>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+</div>
+<br>
+
+@code {
+
+
+
+    EmitirRCaixa v = new EmitirRCaixa();
+    public List<Funcionario> Listafuncionarios { get; set; } = new List<Funcionario>();
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Listafuncionarios = _funcionarioController.ListarFuncionarios();
+
+
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await jsModule.InvokeAsync<IJSObjectReference>(
+                  "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                //mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    public async Task Emitir()
+    {
+        try
+        {
+            string tipoCaixa = "Operacional";
+            if (v.TipoCaixa == 2) tipoCaixa = "Banco";
+            var rel = await _caixas.ListarCaixaPorPeriodo(v.DataInicio, v.DataFim, tipoCaixa);
+            if (rel == null || rel.Count <= 0)
+            {
+                statusMensagem.ShowModal("Atenção", "O funcionário não possui caixa aberto no período selecionado!");
+            }
+            else
+            {
+                var relatorioFun = rel.Where(r => r.Fk_id_funcionario == v.Fk_id_funcionario &&
+                                             r.Tipo == tipoCaixa).ToList();
+
+                ImpressaoCaixa imprimir = new ImpressaoCaixa();
+                if (v.Formato == 1)
+                    await imprimir.GerarRelatorioCaixaResumido(relatorioFun, nav, JSRuntime, v.DataInicio, v.DataFim, v.isChecked);
+                if (v.Formato == 2)
+                    await imprimir.GerarRelatorioCaixa(relatorioFun, nav, JSRuntime, v.DataInicio, v.DataFim, v.isChecked);
+
+            }
+            //await imprimir.GerarRelatorioFinanceiro(relatorioFun, nav, JSRuntime, v.DataInicio, v.DataFim, v.isChecked);
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Erro! Erro ao gerar o relatório " + ex.Message);
+        }
+    }
+
+    private sealed class InputModel
+    {
+        [Phone]
+
+        [Display(Name = "Número de telefone")]
+        public string? PhoneNumber { get; set; }
+    }
+
+    public class EmitirRCaixa
+    {
+        [Required]
+        public int? TipoCaixa { get; set; }
+        [Required]
+        public DateOnly DataInicio { get; set; }
+        [Required]
+        public DateOnly DataFim { get; set; }
+
+        public string NomeEmissor { get; set; }
+
+        [Required]
+        public int? Fk_id_funcionario { get; set; }
+
+        [Required]
+        public int? Formato { get; set; }
+
+        public bool isChecked { get; set; } = false;
+
+        public EmitirRCaixa()
+        {
+            DataInicio = DateOnly.FromDateTime(DateTime.Now);
+            DataFim = DateOnly.FromDateTime(DateTime.Now);
+        }
+
+    }
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

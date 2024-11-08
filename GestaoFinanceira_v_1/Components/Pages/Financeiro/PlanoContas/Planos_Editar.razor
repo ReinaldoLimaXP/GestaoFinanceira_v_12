@@ -1,0 +1,103 @@
+﻿@page "/planos/editar/{id_plano:int}"
+@inject PlanoContasController _planosController
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Planos</PageTitle>
+
+<h1><b>Cadastre um novo plano de contas e matenha seus dados atualizados</b></h1>
+<hr />
+
+<EditForm Model="@planoC" OnValidSubmit="@Cadastrar" method="post" FormName="cad_planos">
+	<ObjectGraphDataAnnotationsValidator/>
+    <div class="input-group col-md-12">
+		<div class="form-group col-md-2">
+			<label>Código: *</label>
+			<InputText id="codigo" @bind-Value="planoC.Codigo" class="form-control" />
+		</div>
+		&nbsp   &nbsp
+		<div class="form-group col-md-4">
+			<label>Descrição: *</label>
+			<InputText id="descricaiPla" @bind-Value="planoC.Descricao" class="form-control" />
+
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-12">
+		<div class="form-group col-md-2">
+			<label>Abreviatura: *</label>
+			<InputText id="abreviacao" @bind-Value="planoC.Abreviatura" class="form-control" />
+		</div>
+		&nbsp   &nbsp
+		<div class="form-group col-md-3">
+			<label>Natureza da Conta: *</label>
+			<InputSelect @bind-Value="planoC.NaturezaConta" class="form-select">
+				<option value="">--Selecionar--</option>
+				@foreach (var situacao in Enum.GetValues(typeof(NaturezaConta)))
+				{
+					<option value="@situacao">@situacao</option>
+				}
+			</InputSelect>
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-12">
+		<div class="form-group col-md-6">
+			<label>Observação: *</label>
+			<InputText id="observacoesPla" @bind-Value="planoC.Observacoes" class="form-control" />
+		</div>
+	</div>
+	<br />
+	<div class="form-group">
+		<a href="/planos">
+			<button type="button" class="btn btn-danger bi bi-searche">
+				Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+			</button>
+		</a>
+
+		<button type="submit" class="btn btn-success create">
+			Salvar &nbsp <i class="fa fa-save"></i>
+		</button>
+		<!--<input type="submit" value="Cadastrar"  class="btn btn-success create bi bi-search"/>-->
+	</div>
+</EditForm>
+
+@code {
+	PlanoDeContas planoC = new PlanoDeContas();
+	[Parameter]
+	public int id_plano { get; set; }
+	string mensagem = "";
+	protected override void OnInitialized()
+	{
+		planoC = _planosController.BuscarId(id_plano);
+	}
+
+	public void Cadastrar()
+	{
+		try
+		{
+			_planosController.Atualizar(planoC);
+			statusMensagem.ShowModal("Atualização", "Plano de conta atualizado com sucesso!");
+		}catch(Exception ex)
+		{
+			statusMensagem.ShowModal("Erro", "Erro ao atualizar o plano de conta. "+ex.Message);
+		}
+	}
+
+
+
+
+	public enum NaturezaConta { Crédito, Débito }
+
+	protected StatusMensagem statusMensagem = new StatusMensagem();
+	protected void ConfirmarMensagem(bool confirm)
+	{
+		NavigationManager.NavigateTo("/planos");
+
+	}
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+

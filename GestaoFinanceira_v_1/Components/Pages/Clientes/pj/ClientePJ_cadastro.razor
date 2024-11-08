@@ -1,0 +1,512 @@
+﻿@page "/clientespj/cadastro"
+@namespace BlazorInputMask.Pages
+@inject NavigationManager NavigationManager
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment env
+@implements IAsyncDisposable
+@using Newtonsoft.Json
+@inject ClientePJsController _clientePJC
+@inject EstadosController _controleEstado
+@inject CidadesController _controleCidade
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<h2><b>Cadastro de Clientes</b></h2>
+<h4>Cadastre um novo cliente e mantenha seus dados atualizados</h4>
+
+<EditForm Model="@clientePJ" OnValidSubmit="@Cadastrar" FormName="Cad_clientePJ">
+    <ObjectGraphDataAnnotationsValidator />
+    <hr/>
+
+     <!--Inicio do div dos forms e da imagem-->
+     <div class="input-group">
+         <!--Inicio do div dos forms-->
+         <div  class="col-md-10">
+             <!--Inicio do div dos imputs CPF e nome-->
+            <div class="input-group col-md-12">
+                <div class="form-group col-md-3">
+                <label>CNPJ: *</label>
+                    <!--<div class="col-sm-2">-->
+                    <InputText id="cnpjCliente"    class="form-control" placeholder="00.000.000/00000-00" @bind-Value="clientePJ.CNPJ_PJ" @onblur="Existe"/>
+                     @if(clientePJ.CNPJ_PJ != null)
+                    {
+                        @if(clientePJ.CNPJ_PJ.Length >= 17){                            
+                            <ValidationMessage For="()=>clientePJ.CNPJ_PJ"/> 
+                        }
+                    }
+                </div>
+                &nbsp
+                 <div class="form-group col-md-1">
+                     <br />
+                    <button style="z-index:0;"  type="button" class="btn btn-secondary"   @onclick='BuscarCNPJ'>
+                     <i class="bi bi-search"></i>  
+                    </button>
+                 </div>
+                 &nbsp   
+                <div class="form-group col-md-3">
+                    <label>Razão Social: *</label>
+                    <InputText type="text" class="form-control" @bind-Value="clientePJ.RazaoSocial_PJ"/>
+                </div>
+                &nbsp  &nbsp &nbsp &nbsp
+                <div class="form-group col-md-4">
+                    <label>Nome Fantasia: </label>
+                    <InputText type="text" class="form-control" @bind-Value="clientePJ.NomeFantasia_PJ"/>
+                </div>
+            </div><!--Fim do div dos imputs CPF e nome-->
+            <br/>
+            <!--Inicio do div dos imputs RG, data de nascimento e sexo-->
+            <div class="input-group col-md-12">        
+                <div class="form-group col-md-2">
+                    <label>Incrição Estadual: </label>
+                    <InputText id="rg" @bind-Value="clientePJ.InscricaoEstadual_PJ" class="form-control"/>
+                </div>
+                 &nbsp  &nbsp  &nbsp 
+                <div class="form-group col-md-3">
+                    <label>Atividade Econômica: *</label>
+                    <InputText id="orgaoEmirssor" @bind-Value="clientePJ.AtividadeEconomica_PJ" class="form-control"/>
+                </div> 
+                &nbsp   &nbsp   
+                <div class="form-group col-md-3">
+                    <label>Situação: </label>
+                    <InputSelect @bind-Value="clientePJ.Situacao_PJ" class="form-select">
+                          <option value="">--Selecionar--</option>
+                          <option value="ativada">Ativada</option>
+                          <option value="desativada">Desativada</option>
+                    </InputSelect>
+                </div>
+                &nbsp  &nbsp  
+                <div class="form-group col-md-3">
+                    <label>Responsável: </label>
+                    <InputText id="dataNasc" @bind-Value="clientePJ.Responsavel_PJ" class="form-control"/>
+                </div>
+                
+                
+            </div><!--Fim do div dos imputs RG, data de nascimento e sexo-->
+        </div><!--Fim do div dos forms-->
+        <div>
+             <div class="form-group col-md-2">
+                <div class="imageContainer">
+                    <img id='imgCliente' @onclick="@FotoCarregarr" src="@imagem" width="120px" height="120px"/>
+                </div>
+                <InputFile type="file"  OnChange="LoadFiles" id="fImage" accept="image/png, image/jpeg, image/gif"/>
+             </div>
+        </div>
+    </div><!--Fim do div dos forms e da imagem-->
+
+    <hr/>
+     <div class="input-group col-md-8">
+         
+        <div class="form-group col-md-2">
+            <label> CEP: *</label>
+            <InputText id="cep"   @bind-Value="clientePJ.Cep" class="form-control" />
+         </div>
+         &nbsp
+         <div class="form-group col-md-1">
+             <br />
+            <button  type="button" class="btn btn-secondary"   @onclick='BuscarLocalidade'>
+             <i class="bi bi-search"></i>  
+            </button>
+         </div>
+         &nbsp   &nbsp  &nbsp  &nbsp
+         <div class="form-group col-md-6">
+            <label> Logradouro: *</label  
+             <InputText id="logradouro" @bind-Value="clientePJ.Logradouro" class="form-control"/>
+         </div>
+         &nbsp   &nbsp &nbsp  &nbsp 
+         <div class="form-group col-md-2">
+            <label> Número: *</label               
+             <InputText id="numero"  @bind-Value="clientePJ.Numero" class="form-control"/>
+         </div>
+     </div>
+     <br />
+    
+
+      <div class="input-group mb-8">
+          <div class="form-group col-md-4"> 
+              <label>Bairro: *</label>
+                <InputText id="bairro" @bind-Value="clientePJ.Bairro" class="form-control"/>
+           </div>
+            
+            &nbsp   &nbsp &nbsp  &nbsp 
+           <div class="form-group col-md-3">  
+               <label> Estado: </label>
+                <InputSelect @bind-Value="id_estadoSelecionado" @onblur="@SelecionarCidades"  class="form-select">
+                    <!--Preencher do banco posteriormente-->
+                    <option value="0">--Selecionar--</option>
+                @if(estadosList == null)
+                {
+
+                }
+                else
+                {
+                  @foreach(Estado e in estadosList)
+                    {
+                        <option value="@e.Id_estado"> @e.Uf_est </option>
+                    }  
+                }
+                
+            </InputSelect>
+           </div>
+           &nbsp   &nbsp &nbsp &nbsp
+           <div class="form-group col-md-4">
+                <label> Cidade: *</label>
+                <InputSelect @bind-Value="clientePJ.fk_id_cidades" class="form-select">
+                    <!--Preencher do banco posteriormente-->
+                      <option value="0">--Selecionar--</option>
+                      @if(cidadesList == null)
+                        {
+                            <option value="0"> nenhuma cidade </option>
+                        }
+                        else
+                        {
+                          @foreach(Cidade cid in cidadesCelecionadas)
+                            {
+                                <option value="@cid.Id_cidade"> @cid.Nome_cid </option>
+                            }  
+                        }
+                </InputSelect>
+           </div>
+      </div>
+
+     <hr />
+
+     <div class="input-group mb-8">
+          <div class="form-group col-md-4"> 
+              <label>Contato 1: *</label>
+                <InputText id="celularTel"   @bind-Value="clientePJ.Celular" class="form-control"/>
+           </div>
+          &nbsp   &nbsp &nbsp 
+         <div class="form-group col-md-3">
+              <label>Contato 2: </label>
+              <InputText id="celTrabalho" @bind-Value="clientePJ.Tel_trabalho" class="form-control"/>
+          </div>
+          &nbsp   &nbsp  
+          <div class="form-group col-md-4"> 
+               <label>Contato 3: </label>
+              <InputText id="telCasa" @bind-Value="clientePJ.Tel_casa" class="form-control"/>
+          </div>
+     </div>
+   
+
+    <hr />
+
+
+    <div class="input-group mb-8">
+        <div class="form-group col-md-6"> 
+            <label>Email 1: </label>
+            <InputText type="email" id="emailPessoal" @bind-Value="clientePJ.Email_pessoal" class="form-control"/>
+        </div>
+        &nbsp   &nbsp &nbsp  &nbsp   &nbsp &nbsp  
+        <div class="form-group col-md-5">
+            <label>Email 2: </label>
+            <InputText  type="email" id="emailProfissional" @bind-Value="clientePJ.Email_profissional" class="form-control"/>
+        </div>
+    </div>
+
+     <br />
+      <div class="form-group">
+           <a href="/clientes">
+            <button  type="button" class="btn btn-danger bi bi-searche">
+                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+            </button>
+            </a>
+            <div class="float-end">
+                <button type="submit" class="btn btn-success create"> 
+                    Salvar &nbsp <i class="fa fa-save"></i>
+                </button>
+            </div>
+      </div>
+     <br />
+     <br />
+</EditForm>
+
+
+
+
+@code {
+    int id_estadoSelecionado;
+    //Cidade cidadeSelecionada;
+    string imagem = "imagensClientes/camera.png";
+    IReadOnlyList<IBrowserFile>? arquivoSelecionados = null;
+    private ClientePJ clientePJ = new ClientePJ();
+
+
+    List<Estado> estadosList { get; set; }
+    List<Cidade> cidadesList { get; set; }
+    List<Cidade> cidadesCelecionadas{ get; set; }
+
+    string mensagem = "";
+    int resul = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //cidadeSelecionada = new Cidade();
+            estadosList = await _controleEstado.listarTodosawait();
+            cidadesList = await _controleCidade.ListarTodosawait();
+            cidadesCelecionadas = cidadesList;
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao carregar a página de cliente " + ex.Message);
+        }
+
+    }
+
+    private async Task SelecionarCidades()
+    {
+        if(id_estadoSelecionado != 0)
+        {
+            cidadesCelecionadas =  cidadesList.Where(x => x.Estado.Id_estado == id_estadoSelecionado).ToList();
+        }
+        else
+        {
+            cidadesCelecionadas = cidadesList;
+        }
+
+    }
+
+    private async Task Cadastrar()
+    {
+        mensagem = "";
+        try
+        {
+            //clientePJ.Cidade = cidadesList.First(x => x.Id_cidade == clientePJ.fk_id_cidades);
+            clientePJ.Foto = imagem;
+            await _clientePJC.Salvar(clientePJ);
+            mensagem = "Cliente cadastrado com sucesso!";
+            await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+        }catch(Exception ex)
+        {
+            //mensagem = endereco.Logradouro;
+            mensagem = "Ocorreu um erro inesperado ao tentar salvar o cliente, por favor tente realizar o procedimento novamente! "+ex.Message;
+            JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+        }
+    }
+
+    private async Task Existe()
+    {
+        try{
+        ClientePJ CNPJ = await _clientePJC.BuscarCNPJ(clientePJ.CNPJ_PJ);
+        if(CNPJ.Id_cliente != null)
+        {
+            NavigationManager.NavigateTo("clientes/editarPJ/" + CNPJ.Id_cliente);
+        }
+        }catch(Exception){}
+    }
+
+    private  async Task BuscarLocalidade()
+    {
+        if(clientePJ.Cep != null)
+        {          
+            try
+            {
+                string cepp = clientePJ.Cep.Replace("-", "");
+                Endereco informacoesCep = new Endereco();
+                string url = "https://viacep.com.br/ws/" + cepp + "/json";
+
+                using (var cliente = new HttpClient())
+                {
+                    HttpResponseMessage resposta = await cliente.GetAsync(url);
+                    string json = await resposta.Content.ReadAsStringAsync();
+                    informacoesCep = JsonConvert.DeserializeObject<Endereco>(json);
+
+                    if (informacoesCep is not null)
+                    {
+                       clientePJ.Logradouro = informacoesCep.Logradouro;
+                        clientePJ.Bairro = informacoesCep.Bairro;
+                        Cidade c = cidadesList.FirstOrDefault(x => x.Nome_cid == informacoesCep.Localidade);
+                        if(c != null)
+                        {
+                            clientePJ.Cidade = c;
+                            clientePJ.fk_id_cidades = clientePJ.Cidade.Id_cidade;
+                        }
+                        Estado e = estadosList.FirstOrDefault(x => x.Uf_est == informacoesCep.Uf);
+                        if(e != null)
+                        {
+                            id_estadoSelecionado = e.Id_estado;
+                        } 
+                    }                    
+                }  
+            }catch(Exception ex)
+            {
+
+            }
+        }
+
+
+    }
+
+    private void ChangeValue(ChangeEventArgs changeEventArgs)
+    {
+        BuscarLocalidade();
+    }
+
+    private  async Task BuscarCNPJ()
+    {
+        try
+        {
+            if(clientePJ.CNPJ_PJ!= null && clientePJ.CNPJ_PJ.Length >= 13){
+                string cnpjS = clientePJ.CNPJ_PJ.Replace("-", "").Replace(".","").Replace("/","");
+                string url = "https://api.cnpjs.dev/v1/"+cnpjS;
+                using (var httpCliente = new HttpClient())
+                {
+                    HttpResponseMessage resposta = await httpCliente.GetAsync(url);
+                    string json = await resposta.Content.ReadAsStringAsync();
+                    var r = JsonConvert.DeserializeObject<Empresa>(json);
+                    /*
+                    Empresa e = new Empresa();
+                    e.Razao_social = r.Razao_social;
+                    e.Nome_fantasia = r.Nome_fantasia;
+                    e.Situacao_cadastral = r.Situacao_cadastral;
+                    e.Email = r.Email;
+                    e.Telefone1 = r.Telefone1.Insert(0,"(").Insert(3,")").Insert(4,"9");
+                    e.Telefone2 = r.Telefone2.Insert(0,"(").Insert(3,")").Insert(4,"9");
+                    e.Telefone_fax = r.Telefone_fax.Insert(0,"(").Insert(3,")").Insert(4,"9");
+
+                    e.endereco.Cep = r.endereco.Cep.Insert(5,"-");
+                    */
+                    if (r.Razao_social != null)
+                    {
+                        clientePJ.RazaoSocial_PJ = r.Razao_social;
+                        clientePJ.NomeFantasia_PJ = r.Nome_fantasia;
+                        clientePJ.Situacao_PJ = r.Situacao_cadastral;
+                        clientePJ.Email_pessoal = r.Email;
+                        clientePJ.Celular = r.Telefone1.Insert(0, "(").Insert(3, ")").Insert(4, "9");
+                        clientePJ.Tel_trabalho = r.Telefone2.Insert(0, "(").Insert(3, ")").Insert(4, "9");
+                        clientePJ.Bairro = r.Endereco.Bairro;
+                        clientePJ.Logradouro = r.Endereco.Logradouro;
+
+                        clientePJ.Cep = r.Endereco.Cep.Insert(5, "-");
+                        await BuscarLocalidade();
+
+                        /*
+                        Cidade c = cidadesList.FirstOrDefault(x => x.Nome_cid == r.endereco.Localidade);
+                        if (c != null)
+                        {
+                            e.endereco.Cidade_cli = c;
+                            id_cidadeSelecionada = e.endereco.Cidade_cli.Id_cidade;
+                        }
+                        Estado en = estadosList.FirstOrDefault(x => x.Uf_est == r.endereco.Uf);
+                        if (e != null)
+                        {
+                            id_estadoSelecionado = en.Id_estado;
+                        }*/
+                    }
+                }
+            }
+        }catch(Exception ex)
+        {
+            
+        }
+    }
+
+    void Cancel()
+    {
+        NavigationManager.NavigateTo("clientes");
+    }
+
+    private void fecharModal(string elementoID)
+    {
+        clientePJ = new ClientePJ();
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+    }
+
+    private IJSObjectReference? jsModule;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                 await JSRuntime.InvokeAsync<string>("masksCNPJ.mascaraCNPJ", null);    
+                 await JSRuntime.InvokeAsync<string>("masksTel.mascaratel", null);
+                 await JSRuntime.InvokeAsync<string>("masksTelCasa.mascaratelCasa", null);
+                 await JSRuntime.InvokeAsync<string>("masksTelTra.mascaratelTra", null);
+                 await JSRuntime.InvokeAsync<string>("masksCep.mascaraCep", null);
+            }
+            catch(Exception ex)
+            {
+                mensagem = "Erro ao carregar as máscaras "+ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+
+
+    private async Task LoadFiles(InputFileChangeEventArgs e)
+    {
+        arquivoSelecionados = e.GetMultipleFiles();
+        try
+        {
+            foreach (var file in arquivoSelecionados)
+            {
+                if(clientePJ.CNPJ_PJ != null)
+                {
+                    string nomeFoto =  clientePJ.CNPJ_PJ.Replace("-", "").Replace(".","").Replace("/","");
+                    long maxFileSize = 1024 * 1024 * 2000;
+                    Stream stream = file.OpenReadStream(maxFileSize);
+                    var extensao = Path.GetExtension(file.Name);
+                    var path = $"{env.WebRootPath}\\imagensClientes\\{nomeFoto}{extensao}";
+                    FileStream fs = File.Create(path);
+                    await stream.CopyToAsync(fs);
+                    imagem = $"imagensClientes/{nomeFoto}{extensao}";
+                    stream.Close();
+                    fs.Close();
+
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            imagem = ex.Message;
+        }
+
+    }
+    
+    private async void FotoCarregarr()
+    {
+        if(clientePJ.CNPJ_PJ != null)
+        {
+            await JSRuntime.InvokeAsync<string>("uploadImg.fotoCarregar", null);
+        }
+        else
+        {            
+            await JSRuntime.InvokeAsync<string>("focos.focusById", "cnpjCliente");
+        }        
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+<!--Código responsável por exibir o modal de confirmação de cadastro ou de erro.-->
+
+<div class="modal fade show" id="myModal" style="display:none; background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+<div class="modal-dialog" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Cadastro!</h5>
+        </div>
+        <div class="modal-body">
+                <p>@mensagem</p>
+        </div>
+        <div class="modal-footer">
+                <a href="clientes"><button type="button" class="btn btn-primary">Voltar a lista</button></a>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("myModal")'>Novo</button>
+        </div>
+    </div>
+</div>
+</div>

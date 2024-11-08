@@ -1,0 +1,10 @@
+# Arquivos e diretórios do Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Diretórios de build
+bin/
+obj/

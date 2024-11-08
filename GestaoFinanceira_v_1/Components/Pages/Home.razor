@@ -1,0 +1,157 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Identity
+@using System;
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Data
+@using GestaoFinanceira_v_1.Entidades
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject UserManager<ApplicationUser> UserManager
+@inject RecebimentoController _recebimentoController
+@inject FuncionarioController _funcionariosController
+@inject DespesaController _despesaController
+@inject NavigationManager NavigationManager
+@attribute [Authorize]
+
+<PageTitle>Home</PageTitle>
+
+<div style="border:1px solid; width: 95%; padding: 8px; border-radius:10px; box-shadow: 5px 5px 10px 10px #aaaaaa;">
+    <h2>Notificações</h2>
+
+    <div style="z-index:0" class="input-group col-md-12">
+        <div class="form-group col-md-4">
+            <h4>Recebimentos atrasados</h4>
+            <div class="container d-flex align-items-center justify-content-between">
+                <label class="notificacoesHome"> 
+                    <strong>@totalRecebimentosAtrasados</strong>
+                </label>
+                <div class="mx-auto">
+                    <a href="recebimentos" class="btn btn-dark btn-sm text-decoration-none">
+                        Verificar <i class="bi bi-check-square-fill"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="form-group col-md-4">
+            <h4>Pagamentos atrasados</h4>
+            <div class="container  d-flex align-items-center justify-content-between">
+                <label class="notificacoesHome">
+                    <strong>@totalDespesasAtrasadas</strong>
+                </label>
+                <div class="mx-auto">
+                    <a href="pagamentos" class="btn btn-dark btn-sm text-decoration-none">
+                        Verificar <i class="bi bi-check-square-fill"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="form-group col-md-4">
+            <h4>Recebimentos a baixar</h4>
+            <div class="container d-flex align-items-center justify-content-between">
+                <label class="notificacoesHome">
+                    <strong>@totalRecebimentosAbertos</strong>
+                </label>
+                <div class="mx-auto">
+                    <a href="recebimentos" class="btn btn-dark btn-sm text-decoration-none">
+                        Verificar <i class="bi bi-check-square-fill"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+<br />
+<br />
+<div style="border:1px solid; width: 95%; padding: 8px; border-radius:10px; box-shadow: 5px 5px 10px 10px #aaaaaa;">
+    <h2>Últimos recebimentos realizados</h2>
+
+    <table class="table table-striped table-md table-responsive-md">
+        <thead>
+            <tr>
+                <th>Nº Caixa</th>
+                <th>Cliente</th>
+                <th>Data</th>
+                <th>Horário</th>
+                <th>Nº Venda</th>
+                <th>Forma de Recebimento</th>
+                <th>Valor</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Recebimento rec in ListaRecebimentos)
+            {
+                <tr>
+                    <td>@rec.CaixaRecebimento.Id_caixa</td>
+                    <td>
+                        @if(rec.Venda is not null)
+                        {
+                            @if(rec.Venda.Cliente is not null)
+                            {
+                                if (rec.Venda.Cliente is ClientePF)
+                                {
+                                    ClientePF c = rec.Venda.Cliente as ClientePF;
+                                
+                                    @c.Nome_cli
+                                }
+                                else if (rec.Venda.Cliente is ClientePJ)
+                                {
+                                    ClientePJ pj = rec.Venda.Cliente as ClientePJ;
+                                    @pj.NomeFantasia_PJ
+                                }
+                            }
+                        }
+                    </td>
+                    <td>@rec.DataPagamento</td>
+                    <td>@rec.HoraPagamento</td>
+                    <td>@rec.Fk_id_venda</td>
+                    <td>@rec.TipoPagamento</td>
+                    <td>@rec.ValorParcela.ToString("C2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    List<Recebimento> ListaRecebimentos { get; set; } = new List<Recebimento>();
+    List<Despesa> ListadeDepesa { get; set; } = new List<Despesa>();
+    string IdLogado;
+    ApplicationUser usuario = new ApplicationUser();
+    Funcionario fun = new Funcionario();
+    int totalDespesasAtrasadas = 0;
+    int totalRecebimentosAtrasados = 0;
+    int totalRecebimentosAbertos = 0;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            usuario = UserManager.FindByIdAsync(IdLogado).Result;
+            fun = await _funcionariosController.BuscarIDAwait(usuario.Id_funcionario);
+            if (usuario is not null)
+            {
+                //f.Fk = usuario.Id_funcionario;
+                ListaRecebimentos = await _recebimentoController.ListarTodosAwait(fun.Fk_id_empresa);
+                totalRecebimentosAtrasados = ListaRecebimentos.Count(x => x.StatusRecebimento.ToLower() == "aberto" && x.DataVencimento < DateOnly.FromDateTime(DateTime.Now));
+                totalRecebimentosAbertos = ListaRecebimentos.Count(x => x.StatusRecebimento.ToLower() == "aberto");
+
+                ListaRecebimentos = ListaRecebimentos.Where(x => x.CaixaRecebimento.Funcionario_Caixa.Id_funcionario == usuario.Id_funcionario).ToList();
+                ListaRecebimentos = ListaRecebimentos.Where(x => x.StatusRecebimento.ToLower() == "fechado").OrderByDescending(x => x.DataPagamento).ThenByDescending(x => x.HoraPagamento).Take(5).ToList();
+
+                ListadeDepesa = await _despesaController.ListarDespesasEmpresaawait(fun.Fk_id_empresa);
+                totalDespesasAtrasadas = ListadeDepesa.Count(x => x.Status_des.ToLower() == "aberto" && x.Vencimento < DateOnly.FromDateTime(DateTime.Now));
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/Account/Login");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            //statusMensagem.ShowModal("Erro", "Erro ao listar as vendas!");
+        }
+    }
+}

@@ -1,0 +1,153 @@
+﻿@page "/servico/editar/{id_servico:int}"
+@inject NavigationManager NavigationManager
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment env
+@implements IAsyncDisposable
+@inject ServicoController _servicoController
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<h2><b>Cadastro de Serviços</b></h2>
+<h4>Cadastre um novo serviço e mantenha seus dados atualizados</h4>
+<EditForm Model="@servico" OnValidSubmit="@Atualizar">
+	<DataAnnotationsValidator />
+	<hr />
+
+	
+        <div class="row">
+            <div class="form-group col-md-8">
+                <label>Nome: *</label>
+                <InputText type="text"  class="form-control" @bind-Value="servico.Nome_ser" />
+            </div>
+            
+        </div>
+        <br />
+    
+
+		<div class="row">
+            <div class="form-group col-md-2">
+                <label>Valor Estimado: *</label>
+            <InputText onkeyup="moedaFormat(this);" id="valorEstimado" placeholder=" Ex. R$ 100,00"
+                       @bind-Value="ValorServico" class="form-control" />
+            </div>
+
+            <div class="form-group col-md-2">
+                <label>Tempo Estimado: </label>
+                <InputText id="tempoEstimado" placeholder="Ex. 30:00" @bind-Value="servico.TempoEstimado_ser" class="form-control" />
+            </div>
+
+            <div class="form-group col-md-2">
+                <label>Garantia: </label>
+                <InputText id="garantia"   @bind-Value="servico.Garantia_ser" class="form-control" />
+            </div>
+            
+            <div class="form-group col-md-2">
+                <label>Tipo</label>
+                <InputSelect @bind-Value="servico.Tipo_ser" class="form-select">
+                    <option value="">--Selecionar--</option>
+                    <option value="transferencia">Transferência</option>
+                    <option value="cautelar">Cautelar</option>
+                    <option value="emplacamento">Emplacamento</option>
+                </InputSelect>
+            </div>
+		</div>
+
+
+    <br />
+    <div class="form-group col-md-8">
+        <a href="/servicos">
+            <button type="button" class="btn btn-danger bi bi-searche">
+                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+            </button>
+        </a>
+        <div class="float-end">
+            <button type="submit" class="btn btn-success create">
+                Salvar &nbsp <i class="fa fa-save"></i>
+            </button>
+        </div>
+        <!--<input type="submit" value="Cadastrar"  class="btn btn-success create bi bi-search"/>-->
+
+
+    </div>
+    <br />
+    <br />
+</EditForm>
+@code {
+    [Parameter]
+    public int id_servico { get; set; }
+
+    private string ValorServico = "0,0";
+    private Servico servico = new Servico();
+    private IJSObjectReference? jsModule;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {            
+            servico =  await _servicoController.BuscarId(id_servico);
+            ValorServico = servico.ValorSugerido_ser.ToString("F2");
+            //servico = servico.Clone();
+
+        }catch(Exception ex)
+        {
+            MensagemModal("Erro", "Erro ao carregar a página de edição! " + ex.Message);
+        }
+    }
+
+
+    private void Atualizar()
+    {
+        try
+        {
+            servico.ValorSugerido_ser = double.Parse(ValorServico);
+            _servicoController.Atualizar(servico.Id_servico,servico);
+            MensagemModal("Atualização", "Serviço atualizado com sucesso!");
+        }
+        catch (Exception)
+        {
+
+            MensagemModal("Erro", "Ocorreu um erro inesperado ao tentar salvar o serviço, por favor tente realizar o procedimento novamente! ");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JSRuntime.InvokeAsync<string>("masksHoraServico.mascaraHoraSer", null);
+        }
+        catch (Exception)
+        {
+
+            //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+        }  
+    }
+
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+    */
+    protected void ConfirmarMensagem(bool confirm)
+    {
+        NavigationManager.NavigateTo("/servicos");
+    }
+}
+
+<!--Realiza a incorporação do modal de mensagem-->
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+

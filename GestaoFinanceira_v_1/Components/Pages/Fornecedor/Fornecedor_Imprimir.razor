@@ -1,0 +1,393 @@
+﻿@page "/fornecedor/imprimir/{id_fornecedor:int}"
+@inject NavigationManager NavigationManager
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment env
+@implements IAsyncDisposable
+@using Newtonsoft.Json
+@inject EstadosController _controleEstado
+@inject CidadesController _controleCidade
+@inject FornecedorController _controleFornecedor
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<div class="">
+<h2><b>Cadastro de Fornecedores</b></h2>
+<h4>Cadastre um fornecedor e mantenha seus dados atualizados</h4>
+
+
+<EditForm Model="@fornecedor" OnValidSubmit="@Imprimir" method="post" FormName="cad_fornecedor">
+    <ObjectGraphDataAnnotationsValidator/>
+    <hr />
+    <div class="row">
+        <div class="form-group col-md-3">
+            <label>CNPJ: *</label>
+            <!--<div class="col-sm-2">-->
+            <InputText disabled id="cnpjCliente" class="form-control" placeholder="00.000.000/00000-00" @bind-Value="fornecedor.Cnpj" />
+            @if (fornecedor.Cnpj != null && fornecedor.Cnpj.Length >= 17)
+            {
+                <ValidationMessage For="()=>fornecedor.Cnpj" />
+            }
+        </div>
+
+        <div class="form-group col-md-1">
+            <br />
+            <button style="z-index:0;" disabled type="button" class="btn btn-secondary" @onclick='BuscarCNPJ'>
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+
+        <div class="form-group col-md-4">
+            <label>Razão Social: *</label>
+            <InputText disabled type="text" class="form-control" @bind-Value="fornecedor.Razao_social" />
+        </div>
+
+        <div class="form-group col-md-4">
+            <label>Nome Fantasia: </label>
+            <InputText disabled type="text" class="form-control" @bind-Value="fornecedor.Nome_fantasia" />
+        </div>
+    </div>
+    <br />
+    <div class="row">
+        <div class="form-group col-md-2">
+            <label>Incrição Estadual: </label>
+            <InputText disabled id="rg" @bind-Value="fornecedor.InscricaoEstadual" class="form-control" />
+        </div>
+ 
+        <div class="form-group col-md-3">
+            <label>Atividade Econômica: *</label>
+            <InputText  disabled id="orgaoEmirssor" @bind-Value="fornecedor.AtividadeEconomica" class="form-control" />
+        </div>
+    
+        <div class="form-group col-md-3">
+            <label>Situação: </label>
+            <InputSelect disabled @bind-Value="fornecedor.Situacao_cadastral" class="form-select">
+                @foreach (var situacao in Enum.GetValues(typeof(Situacao_cadastral)))
+                {
+                    <option value="@situacao">@situacao</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="form-group col-md-4">
+            <label>Responsável: </label>
+            <InputText disabled id="dataNasc" @bind-Value="fornecedor.Responsavel" class="form-control" />
+        </div>
+    </div>
+
+    <hr />
+    <!--Dados do endereço-->
+    <div class="row">
+        <div class="form-group col-md-2">
+            <label> CEP: *</label>
+            <InputText disabled id="cep" @bind-Value="fornecedor!.Endereco.Cep" class="form-control" />
+        </div>
+        <div class="form-group col-md-1">
+            <br />
+            <button disabled type="button" class="btn btn-secondary" @onclick='BuscarLocalidade'>
+                <!--Implementar a busca de localidade!-->
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+        <div class="form-group col-md-6">
+            <label> Logradouro: *</label>
+            <InputText disabled id="logradouro" @bind-Value="fornecedor.Endereco.Logradouro" class="form-control" />
+        </div>
+        <div class="form-group col-md-3">
+            <label> Número: *</label>
+            <InputText disabled id="numero" @bind-Value="fornecedor.Endereco.Numero" class="form-control" />
+        </div>
+    </div>
+    <br />
+
+
+    <div class="row">
+        <div class="form-group col-md-4">
+            <label>Bairro: *</label>
+            <InputText disabled id="bairro" @bind-Value="fornecedor.Endereco.Bairro" class="form-control" />
+        </div>
+
+        <div class="form-group col-md-4">
+            <label> Estado: </label>
+            <InputSelect disabled @bind-Value="id_estadoSelecionado" @onblur="@SelecionarCidades" class="form-select">
+                <!--Preencher do banco posteriormente-->
+                <option value="0">--Selecionar--</option>
+                @if (estadosList == null)
+                {
+                }
+                else
+                {
+                    @foreach (Estado e in estadosList)
+                    {
+                        <option value="@e.Id_estado"> @e.Uf_est </option>
+                    }
+                }
+            </InputSelect>
+        </div>
+  
+        <div class="form-group col-md-4">
+            <label> Cidade: *</label>
+            <InputSelect disabled @bind-Value="fornecedor.Endereco.Fk_id_cidades" class="form-select">
+                <!--Preencher do banco posteriormente-->
+                <option value="0">--Selecionar--</option>
+                @if (cidadesList == null)
+                {
+                    <option value="0"> nenhuma cidade </option>
+                }
+                else
+                {
+                    @foreach (Cidade cid in cidadesCelecionadas)
+                    {
+                        <option value="@cid.Id_cidade"> @cid.Nome_cid </option>
+                    }
+                }
+            </InputSelect>
+        </div>
+    </div>
+    <hr />
+    <!--Dados de contato-->
+    <div class="row">
+        <div class="form-group col-md-4">
+            <label>Contato 1: *</label>
+            <InputText disabled id="celularTel" @bind-Value="fornecedor.Telefone1" class="form-control" />
+        </div>
+     
+        <div class="form-group col-md-4">
+            <label>Contato 2: </label>
+            <InputText disabled id="celTrabalho" @bind-Value="fornecedor.Telefone2" class="form-control" />
+        </div>
+      
+        <div class="form-group col-md-4">
+            <label>Contato 3: </label>
+            <InputText disabled id="telCasa" @bind-Value="fornecedor.Telefone3" class="form-control" />
+        </div>
+    </div>
+    <hr />
+
+
+    <div class="row">
+        <div class="form-group col-md-6">
+            <label>Email 1 *: </label>
+            <InputText disabled type="email" id="emailPessoal" @bind-Value="fornecedor.Email" class="form-control" />
+        </div>
+ 
+        <div class="form-group col-md-6">
+            <label>Email 2: </label>
+            <InputText disabled type="email" id="emailProfissional" @bind-Value="fornecedor.Email2" class="form-control" />
+        </div>
+    </div>
+    <br />
+    <div class="form-group">
+        <a href="/fornecedores">
+            <button type="button" class="btn btn-danger bi bi-searche">
+                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+            </button>
+        </a>
+        
+        <!--<input type="submit" value="Cadastrar"  class="btn btn-success create bi bi-search"/>-->
+    </div>
+    <br />
+    <br />
+
+</EditForm>
+</div>
+
+@code {
+    private Fornecedor fornecedor = new Fornecedor();
+    [Parameter]
+    public int id_fornecedor { get; set; }
+
+    string mensagem = "";
+    int id_estadoSelecionado;
+    List<Estado> estadosList { get; set; }
+    List<Cidade> cidadesList { get; set; }
+    List<Cidade> cidadesCelecionadas { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //cidadeSelecionada = new Cidade();
+            estadosList = await _controleEstado.listarTodosawait();
+            cidadesList = await _controleCidade.ListarTodosawait();
+            cidadesCelecionadas = cidadesList;
+            fornecedor = await _controleFornecedor.BuscarId(id_fornecedor);
+            id_estadoSelecionado = fornecedor.Endereco.Cidade.Estado.Id_estado;
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Ocorreu um erro ao inicializar o cadastro de fornecedor");
+        }
+
+    }
+
+    private void Imprimir()
+    {
+
+    }
+
+    private async Task SelecionarCidades()
+    {
+        if (id_estadoSelecionado != 0)
+        {
+            cidadesCelecionadas = cidadesList.Where(x => x.Estado.Id_estado == id_estadoSelecionado).ToList();
+        }
+        else
+        {
+            cidadesCelecionadas = cidadesList;
+        }
+
+    }
+
+    private async Task BuscarLocalidade()
+    {
+        if (fornecedor.Endereco.Cep != null && fornecedor.Endereco.Cep.Length >= 7)
+        {
+            try
+            {
+                string cepp = fornecedor.Endereco.Cep.Replace("-", "");
+                Endereco informacoesCep = new Endereco();
+                string url = "https://viacep.com.br/ws/" + cepp + "/json";
+
+                HttpResponseMessage resposta = await http.GetAsync(url);
+                string json = await resposta.Content.ReadAsStringAsync();
+                informacoesCep = JsonConvert.DeserializeObject<Endereco>(json);
+
+                fornecedor.Endereco.Logradouro = informacoesCep.Logradouro;
+                fornecedor.Endereco.Bairro = informacoesCep.Bairro;
+                Cidade c = cidadesList.FirstOrDefault(x => x.Nome_cid == informacoesCep.Localidade);
+                if (c != null)
+                {
+                    fornecedor.Endereco.Cidade = c;
+                    fornecedor.Endereco.Cidade.Id_cidade = fornecedor.Endereco.Cidade.Id_cidade;
+                }
+                Estado e = estadosList.FirstOrDefault(x => x.Uf_est == informacoesCep.Uf);
+                if (e != null)
+                {
+                    id_estadoSelecionado = e.Id_estado;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                statusMensagem.ShowModal("Erro!", "Erro ao buscar a localidade");
+            }
+        }
+
+    }
+
+    private async Task BuscarCNPJ()
+    {
+        try
+        {
+            if (fornecedor.Cnpj != null && fornecedor.Cnpj.Length >= 13)
+            {
+                string cnpjS = fornecedor.Cnpj.Replace("-", "").Replace(".", "").Replace("/", "");
+                string url = "https://api.cnpjs.dev/v1/" + cnpjS;
+                using (var httpCliente = new HttpClient())
+                {
+                    HttpResponseMessage resposta = await httpCliente.GetAsync(url);
+                    string json = await resposta.Content.ReadAsStringAsync();
+                    var r = JsonConvert.DeserializeObject<Empresa>(json);
+
+                    if (r.Razao_social != null)
+                    {
+                        this.fornecedor.Razao_social = r.Razao_social;
+                        this.fornecedor.Nome_fantasia = r.Nome_fantasia;
+                        //this.fornecedor.Situacao_cadastral = r.Situacao_cadastral;
+
+                        this.fornecedor.Email = r.Email;
+                        this.fornecedor.Telefone1 = r.Telefone1.Insert(0, "(").Insert(3, ")").Insert(4, "9");
+                        this.fornecedor.Telefone2 = r.Telefone2.Insert(0, "(").Insert(3, ")").Insert(4, "9");
+                        this.fornecedor.Telefone3 = r.Telefone_fax.Insert(0, "(").Insert(3, ")").Insert(4, "9");
+
+                        this.fornecedor.Endereco.Cep = r.Endereco.Cep.Insert(5, "-");
+                        this.fornecedor.Endereco.Numero = r.Endereco.Numero;
+                        this.fornecedor.Endereco.Bairro = r.Endereco.Bairro;
+                        this.fornecedor.Endereco.Logradouro = r.Endereco.Logradouro;
+
+                        Cidade c = cidadesList.FirstOrDefault(x => x.Nome_cid.ToUpper() == r.Endereco.Municipio.ToUpper());
+                        if (c != null)
+                        {
+                            this.fornecedor.Endereco.Cidade = c;
+                            fornecedor.Endereco.Cidade.Id_cidade = this.fornecedor.Endereco.Cidade.Id_cidade;
+                        }
+                        Estado e = estadosList.FirstOrDefault(x => x.Uf_est == r.Endereco.Uf);
+                        if (e != null)
+                        {
+                            id_estadoSelecionado = e.Id_estado;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm)
+    {
+        NavigationManager.NavigateTo("/fornecedores");
+    }
+
+    private IJSObjectReference? jsModule;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JSRuntime.InvokeAsync<string>("masksCNPJ.mascaraCNPJ", null);
+                await JSRuntime.InvokeAsync<string>("masksCep.mascaraCep", null);
+                await JSRuntime.InvokeAsync<string>("masksTel.mascaratel", null);
+                await JSRuntime.InvokeAsync<string>("masksTelCasa.mascaratelCasa", null);
+                await JSRuntime.InvokeAsync<string>("masksTelTra.mascaratelTra", null);
+                await JSRuntime.InvokeAsync<string>("masksCep.mascaraCep", null);
+            }
+            catch (Exception ex)
+            {
+                statusMensagem.ShowModal("Erro!", "Erro ao carregar as máscaras");
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    private void fecharModal(string elementoID)
+    {
+        fornecedor = new Fornecedor();
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+    }
+}
+
+<!--Realiza a incorporação do modal de mensagem-->
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+
+<div class="modal fade show" id="myModal" style="display:none; background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cadastro!</h5>
+            </div>
+            <div class="modal-body">
+                <p>@mensagem</p>
+            </div>
+            <div class="modal-footer">
+                <a href="servicos"><button type="button" class="btn btn-primary">Voltar a lista</button></a>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("myModal")'>Novo</button>
+            </div>
+        </div>
+    </div>
+</div>

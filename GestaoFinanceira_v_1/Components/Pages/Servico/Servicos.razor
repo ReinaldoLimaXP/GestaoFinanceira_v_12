@@ -1,0 +1,209 @@
+﻿@page "/servicos"
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@inject NavigationManager NavigationManager
+@inject ServicoController _servicoController
+@rendermode InteractiveServer
+@inject Cabecalho cabecalho
+
+<PageTitle>Serviços</PageTitle>
+
+
+<h1><b>Consulta de Serviços</b></h1>
+<hr />
+
+<p>Consulte um serviço cadastrado no sistema e utilize as opções disponíveis</p>
+
+
+<div class="input-group col-md-12">
+
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown='()=>Filtrar()' @onkeyup='()=>Filtrar()'
+                   @onkeypress='()=>Filtrar()' />
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="zerar">--Selecionar--</option>
+            <option value="nome">Nome</option>
+            <option value="tipo">Tipo</option>
+            <option value="valor">Valor</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-1">
+        <br />
+        <a href="/servico/cadastro">
+            <button style="z-index:0;" class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                Novo <i class="bi bi-plus-circle"></i>
+            </button>
+        </a>
+    </div>
+</div>
+
+<br />
+
+
+@if ((listaServico == null || listaServico.Count <= 0) && busca == "")
+{
+    <p><em>Carregando os serviços...</em></p>
+
+}
+else
+{
+    <!--table table-striped table-bordered table-sm-->
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Tipo</th>
+                <th>Valor</th>
+                <th>Tempo</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Servico servico in listaServico)
+            {
+                <tr>
+
+                    <td>@servico.Nome_ser </td>
+                    <td>@servico.Tipo_ser</td>
+
+                    <td>
+                        @servico.ValorSugerido_ser.ToString("C2")
+                    </td>
+                    <td>@servico.TempoEstimado_ser </td>
+
+                    <td>
+                        <td>
+                        <a href="/servico/imprimir/@servico.Id_servico">
+                            <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                        </a>
+                    </td>
+                    <td>
+                        <a href="/servico/editar/@servico.Id_servico">
+                            <button class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                        </a>
+                    </td>
+                    <td>
+                        <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(servico.Id_servico)'><i class="bi bi-trash3-fill"></i></button>
+                    </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    CultureInfo CI = CultureInfo.InvariantCulture;
+    List<Servico>? listaServico { get; set; }
+    List<Servico>? listaServico2 { get; set; }
+    string filtro = "zerar", busca = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+
+            cabecalho.OnChange += StateHasChanged;
+            listaServico = new List<Servico>();
+            listaServico2 = new List<Servico>();
+            listaServico.Clear();
+            listaServico = await _servicoController.ListarTodoswait();
+            listaServico2.AddRange(listaServico);
+            cabecalho.Title = "Consulta de Serviços";
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", "Erro ao inicializar os serviços");
+        }
+
+    }
+
+    private void Filtrar()
+    {
+        listaServico.Clear();
+        listaServico.AddRange(listaServico2);
+        try
+        {
+            if (filtro == "tipo")
+            {
+                List<Servico> listaServicoF = listaServico.Where(x => x.Tipo_ser.ToLower().Contains(busca.ToLower())).ToList();
+                listaServico.Clear();
+                listaServico.AddRange(listaServicoF);
+            }
+            else if (filtro == "nome" || filtro == "zerar")
+            {
+                List<Servico> listaServicoT = listaServico.Where(x => x.Nome_ser.ToLower().Contains(busca.ToLower())).ToList();
+                listaServico.Clear();
+                listaServico.AddRange(listaServicoT);
+            } else if (filtro == "valor")
+            {
+                List<Servico> listaServicoT = listaServico
+                    .Where(x => (x.ValorSugerido_ser != 0 && x.ValorSugerido_ser.ToString().ToLower().Contains(busca.ToLower()))).ToList();
+                listaServico.Clear();
+                listaServico.AddRange(listaServicoT);
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", "Erro ao filtrar os dados!");
+        }
+    }
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    Servico servicoExcluir = new Servico();
+    protected void ExibirmodalExcluir(int id_servico)
+    {
+        servicoExcluir = listaServico.SingleOrDefault(x => x.Id_servico == id_servico);
+        if (servicoExcluir != null)
+        {
+            confirmar.ShowModalConfirmacao("Você tem certeza que deseja excluir o servico ?");
+        }        
+    }
+
+    protected async Task ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                await _servicoController.Deletar(servicoExcluir.Id_servico);
+                listaServico.Remove(servicoExcluir);
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagemModal("Erro", ex.Message);
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+     */
+    protected void ConfirmarMensagem(bool confirm){}
+}
+
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+

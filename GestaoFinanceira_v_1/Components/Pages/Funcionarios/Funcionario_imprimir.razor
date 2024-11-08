@@ -1,0 +1,356 @@
+﻿@page "/funcionario/imprimir/{id_funcionario:int}"
+@inject NavigationManager NavigationManager
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment env
+@implements IAsyncDisposable
+@using GestaoFinanceira_v_1.Utilitarios;
+@using Newtonsoft.Json
+@inject EstadosController controleEstado
+@inject CidadesController controleCidade
+@inject EmpresaController _controllerEmpresa
+@inject FuncionarioController _controllerFuncionario
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+
+<h2><b>Cadastro de Funcionários</b></h2>
+<h4>Cadastre um novo funcionário e mantenha seus dados atualizados</h4>
+<hr/>
+<EditForm Model="@funcionario" OnValidSubmit="@Imprimir">
+    <DataAnnotationsValidator />
+     <!--Inicio do div dos forms e da imagem-->
+     <div class="input-group">
+         <!--Inicio do div dos forms-->
+         <div  class="col-md-10">
+             <!--Inicio do div dos imputs CPF e nome-->
+            <div class="input-group col-md-12">
+                <div class="form-group col-md-3">
+                <label>CPF: *</label>
+                    <!--<div class="col-sm-2">-->
+                    <InputText disabled id="cpfCliente" class="form-control" placeholder="000.000.000-00" @bind-Value="funcionario.Cpf" />
+                                    
+                </div>
+                 &nbsp &nbsp &nbsp  
+                <div class="form-group col-md-5">
+                    <label>Nome: *</label>
+                    <InputText disabled id="nomeFuncionario" type="text" class="form-control" @bind-Value="funcionario.Nome_completo" />
+                </div>
+
+                <!--Colocar empresas-->
+                &nbsp   &nbsp  &nbsp 
+                <div class="form-group col-md-3">
+                    <label>Empresa: </label>
+                    <InputSelect disabled @bind-Value="funcionario.Fk_id_empresa" class="form-select">
+                        <option value="0">--Selecionar--</option>
+                        @if (listaEmpresas != null)
+                        {
+                            @foreach (Empresa empre in listaEmpresas)
+                            {
+                                <option value="@empre.Id_empresa"> @empre.Nome_fantasia </option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
+              
+            </div><!--Fim do div dos imputs CPF e nome-->
+            
+            <!--Inicio do div dos imputs RG, data de nascimento e sexo-->
+            <div class="input-group col-md-12">        
+                <div class="form-group col-md-2">
+                    <label>RG: </label>
+                    <InputText disabled id="rg" @bind-Value="funcionario.Rg" class="form-control"/>
+                </div>
+                 &nbsp  &nbsp   &nbsp
+                <div class="form-group col-md-2">
+                    <label>Orgão Emissor: </label>
+                    <InputText disabled id="orgaoEmirssor" @bind-Value="funcionario.OrgaoEmissor" class="form-control" />
+                </div> 
+                &nbsp  &nbsp   &nbsp &nbsp
+                <div class="form-group">
+                    <label>Data de Nascimento: </label>
+                    <InputDate disabled id="dataNasc" @bind-Value="funcionario.DataNascimento" class="form-control"/>
+                </div>
+                &nbsp   &nbsp    &nbsp &nbsp
+                <div class="form-group col-md-2">
+                    <label>Sexo: *</label>
+                    <InputSelect disabled @bind-Value="funcionario.Sexo" class="form-select">
+                          <option value="">--Selecionar--</option>
+                          <option value="Masculino">Masculino</option>
+                          <option value="Feminino">Feminino</option>
+                    </InputSelect>
+                </div>
+                
+                &nbsp   &nbsp    &nbsp &nbsp
+                <div class="form-group col-md-2">
+                    <label>Estado Civil: </label>
+                    <InputSelect disabled @bind-Value="funcionario.EstadoCivil" class="form-select">
+                          <option value="">--Selecionar--</option>
+                          <option value="solteiro">Solteiro (a)</option>
+                          <option value="casado">Casado (a) </option>
+                           <option value="viuvo">Viúvo (a) </option>
+                    </InputSelect>
+                </div>
+
+            </div><!--Fim do div dos imputs RG, data de nascimento e sexo-->
+        </div><!--Fim do div dos forms-->
+        <div>
+            <div class="form-group col-md-2">
+                <div class="imageContainer">
+                    <img disabled id='imgCliente'  src="@imagem" width="120px" height="120px" />
+                </div>
+                <InputFile disabled type="file"  id="fImage" accept="image/png, image/jpeg, image/gif" />
+            </div>
+        </div>
+    </div><!--Fim do div dos forms e da imagem-->
+     <br />
+    <div class="row">
+            <div class="form-group col-md-3">
+                <label>Função: </label>
+            <InputSelect disabled @bind-Value="funcionario.Fk_id_funcao" class="form-select">
+                    <option value="0">--Selecionar--</option>
+                    @if (listaFuncao != null)
+                    {
+                        @foreach (Funcao f in listaFuncao)
+                        {
+                            <option value="@f.Id_funcao"> @f.Nome_funcao </option>
+                        }
+                    }
+                </InputSelect>
+            </div>
+        <div class="form-group col-md-2">
+                <label>Data de Contratação: </label>
+            <InputDate disabled id="dataContratacao" @bind-Value="funcionario.DataContratacao" class="form-control" />
+            </div>
+            <div class="form-group col-md-2">
+                <label>Data de Dispensa: </label>
+                <InputDate disabled id="dataDispensa" @bind-Value="funcionario.DataDispensa" class="form-control" />
+            </div>
+            <div class="form-group col-md-2">
+                <label>Renumeração: </label>
+                <InputNumber disabled id="renumeracao" @bind-Value="funcionario.Renumeracao" class="form-control"/>
+            </div>
+            <div class="form-group col-md-3">
+                <label>Situação: </label>
+            <InputSelect disabled @bind-Value="funcionario.Situacao" class="form-select">
+                        <option value="">--Selecionar--</option>
+                        <option value="casado">Ativo</option>
+                        <option value="solteiro">Inativo</option>
+                </InputSelect>
+            </div>
+    </div>
+    <hr/>
+    <div class="row">
+    <div class="form-group col-md-2">
+        <label> CEP: *</label>
+        <InputText disabled id="cep" @bind-Value="funcionario.Endereco_fun.Cep" class="form-control" />
+        </div>
+        <div class="form-group col-md-1">
+            <br />
+            <button disabled type="button" class="btn btn-secondary">
+                <i class="bi bi-search"></i>  
+            </button>
+        </div>
+        <div class="form-group col-md-6">
+        <label> Logradouro: *</label>
+            <InputText disabled id="logradouro" @bind-Value="funcionario.Endereco_fun.Logradouro" class="form-control"/>
+        </div>
+        <div class="form-group col-md-3">
+        <label> Número: *</label>               
+            <InputText disabled id="numero"  @bind-Value="funcionario.Endereco_fun.Numero" class="form-control"/>
+        </div>
+    </div>
+    <br />
+    <div class="row">
+        <div class="form-group col-md-4"> 
+            <label>Bairro: *</label>
+        <InputText disabled id="bairro" @bind-Value="funcionario.Endereco_fun.Bairro" class="form-control" />
+        </div>
+        <div class="form-group col-md-4">  
+            <label> Estado: *</label>
+            <InputSelect disabled @bind-Value="id_estadoSelecionado"  class="form-select">
+                <!--Preencher do banco posteriormente-->
+                <option value="0">--Selecionar--</option>
+            @if(estadosList != null)
+            {
+                @foreach(Estado e in estadosList)
+                {
+                    <option value="@e.Id_estado"> @e.Uf_est </option>
+                }  
+            }
+                
+        </InputSelect>
+        </div>
+        <div class="form-group col-md-4">
+            <label> Cidade: *</label>
+            <InputSelect disabled @bind-Value="funcionario.Endereco_fun.Fk_id_cidades" class="form-select">
+                <!--Preencher do banco posteriormente-->
+                    <option value="0">--Selecionar--</option>
+                    @if(cidadesList == null)
+                    {
+                        <option value="0"> nenhuma cidade </option>
+                    }
+                    else
+                    {
+                        @foreach(Cidade cid in cidadesCelecionadas)
+                        {
+                            <option value="@cid.Id_cidade"> @cid.Nome_cid </option>
+                        }  
+                    }
+            </InputSelect>
+        </div>
+    </div>
+     <hr />
+     <div class="row">
+          <div class="form-group col-md-4"> 
+              <label>Celular: *</label>
+                <InputText disabled id="celularTel"  data-mask="(00) 9 0000-0000" @bind-Value="funcionario.Celular" class="form-control"/>
+           </div>
+         <div class="form-group col-md-4">
+              <label>Casa: </label>
+            <InputText disabled id="telCasa" @bind-Value="funcionario.Tel_casa" class="form-control" />
+          </div>
+          <div class="form-group col-md-4"> 
+               <label>Observações: </label>
+              <InputText disabled id="Observacao" @bind-Value="funcionario.Observacoes" class="form-control"/>
+          </div>
+     </div>
+    <hr />
+    <div class="row">
+        <div class="form-group col-md-6"> 
+            <label>Email Pessoal: </label>
+            <InputText disabled type="email" id="emailPessoal" @bind-Value="funcionario.Email_pessoal" class="form-control"/>
+        </div>
+        <div class="form-group col-md-6">
+            <label>Email Profissional: </label>
+            <InputText disabled type="email" id="emailProfissional" @bind-Value="funcionario.Email_profissional" class="form-control" />
+        </div>
+    </div>
+     <br />
+    <div class="form-group">
+        <a href="/funcionarios">
+            <button  type="button" class="btn btn-danger bi bi-searche">
+                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+            </button>
+        </a> 
+    </div>
+     <br />
+     <br />
+</EditForm>
+
+
+@code {
+    [Parameter]
+    public int id_funcionario { get; set; }
+    int id_estadoSelecionado;
+    //Cidade cidadeSelecionada;
+    string imagem = "imagensClientes/camera.png";
+    IReadOnlyList<IBrowserFile>? arquivoSelecionados = null;
+    private Funcionario funcionario = new Funcionario();
+
+    List<Estado>? estadosList { get; set; }
+
+    List<Cidade>? cidadesList { get; set; }
+
+    List<Cidade>? cidadesCelecionadas{ get; set; }
+    List<Empresa>? listaEmpresas{ get; set; }
+    List<Funcao>? listaFuncao{ get; set; }
+
+    string mensagem = "";
+
+    private IJSObjectReference? jsModule;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //cidadeSelecionada = new Cidade();
+            estadosList = await controleEstado.listarTodosawait();
+            cidadesList = await controleCidade.ListarTodosawait();
+            cidadesCelecionadas = cidadesList;
+            listaEmpresas = _controllerEmpresa.listarTodos();
+            listaFuncao = _controllerFuncionario.ListarFuncoes();
+            funcionario = await _controllerFuncionario.BuscarIDAwait(id_funcionario);
+            id_estadoSelecionado = funcionario.Endereco_fun.Cidade.Estado.Id_estado;
+            imagem = funcionario.Foto;
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao carregar a página de funcionário " + ex.Message);
+        }
+
+    }
+
+
+
+    private async void Imprimir()
+    {
+        mensagem = "";
+        try
+        {
+            
+        }catch(Exception ex)
+        {
+            
+        }
+
+    }
+    
+
+
+    private void fecharModal(string elementoID)
+    {
+        funcionario = new Funcionario();
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+    }
+
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                 await JSRuntime.InvokeAsync<string>("masksCPF.mascaraCPF", null);    
+                 await JSRuntime.InvokeAsync<string>("masksTel.mascaratel", null);
+                 await JSRuntime.InvokeAsync<string>("masksTelCasa.mascaratelCasa", null);
+                 await JSRuntime.InvokeAsync<string>("masksTelTra.mascaratelTra", null);
+                 await JSRuntime.InvokeAsync<string>("masksCep.mascaraCep", null);
+            }
+            catch(Exception ex)
+            {
+                mensagem = "Erro ao carregar as máscaras "+ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+<!--Código responsável por exibir o modal de confirmação de cadastro ou de erro.-->
+
+<div class="modal fade show" id="myModal" style="display:none; background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+<div class="modal-dialog" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Cadastro!</h5>
+        </div>
+        <div class="modal-body">
+                <p>@mensagem</p>
+        </div>
+        <div class="modal-footer">
+                <a href="funcionarios"><button type="button" class="btn btn-primary">Voltar a lista</button></a>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("myModal")'>Novo</button>
+        </div>
+    </div>
+</div>
+</div>

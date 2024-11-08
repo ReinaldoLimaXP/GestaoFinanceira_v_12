@@ -1,0 +1,372 @@
+﻿@page "/vendas"
+@using GestaoFinanceira_v_1_0.Controllers
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Data
+@using GestaoFinanceira_v_1.Utilitarios
+@inject NavigationManager NavigationManager
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject CaixaController _caixaController
+@inject VendaController _vendaController
+@inject EncargoController _encargoController
+@inject FuncionarioController _controllerFuncionario
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Vendas</PageTitle>
+
+
+<h1><b>Consulta de Vendas</b></h1>
+<hr />
+
+<p>Consulte uma venda realizada no sistema e utilize as opções disponíveis</p>
+
+
+<div class="input-group col-md-12">
+
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca"   @onkeydown='()=>Filtrar()' @onkeyup='()=>Filtrar()'
+                   @onkeypress='()=>Filtrar()' id="idBusca" class="form-control"/>
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="codigo">Código/ID</option>
+            <option value="data">Data</option>
+            <option value="valor">Valor</option>
+            <option value="cliente">Cliente</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-primary" data-toggle="modal" data-target="#modalCad" @onclick="() => AbrirVenda()">
+            Novo <i class="bi bi-plus-circle"></i>
+        </button>
+    </div>
+</div>
+
+<br />
+
+@if (ListaVendas.Count <= 0 && busca == "")
+{
+    <p><em>Não há vendas registradas</em></p>
+}
+else if ((ListaVendas == null || ListaVendas.Count <= 0) && busca != "")
+{
+    <p><em>Não foi encontrado vendas com o critério de busca</em></p>
+}
+else
+{
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th>Forma de Pagamento</th>
+                <th>Valor Total</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Venda v in ListaVendas)
+            {
+                <tr>
+                    <td>@v.Id_venda</td>
+                    <td>@v.DataVenda</td>
+                    
+                    @if (v.Cliente is null || v.Cliente.Id_cliente == 0)
+                    {
+                        <td>--</td>
+                    }
+                    else
+                    {
+                        @if (v.Cliente is ClientePF)
+                        {
+                            try
+                            {
+                                ClientePF c = v.Cliente as ClientePF;
+                                <td>
+                                    @c.Nome_cli
+                                </td>
+                            }
+                            catch (Exception) { }
+                        }
+                        else if (v.Cliente is ClientePJ)
+                        {
+                            try
+                            {
+                                ClientePJ pj = v.Cliente as ClientePJ;
+                                <td>
+                                    @pj.NomeFantasia_PJ
+                                </td>
+                            }
+                            catch (Exception) { }
+                        }
+                    }
+                    
+                    <td>@v.FormaPagamento</td>
+                    <td>@v.ValorFinal.ToString("C2")</td>
+                    <td>
+                    <td>
+                        <a href="/vendas/imprimir/@v.Id_venda">
+                            <button class="btn-olho btn">
+                                <i class="bi bi-eye-fill"></i>
+                            </button>
+                        </a>
+                    </td>
+                    <td>
+                        <button class="btn-cifrao btn" @onclick="() => reciboVenda.ShowModalModal(v.Id_venda)">
+                            <i class="bi bi-currency-dollar"></i>
+                        </button>
+                    </td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => ExcluirVenda(v.Id_venda)"><i class="bi bi-trash3-fill"></i></button>
+                    </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+@code {
+
+    string filtro = "codigo", busca = "";
+    List<Venda> ListaVendas { get; set; } = new List<Venda>();
+    List<Venda> ListaVendas2 { get; set; } = new List<Venda>();
+    ApplicationUser usuario = new ApplicationUser();
+    Funcionario f = new Funcionario();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //Teste.Titulo = "Consulta de Vendas";
+            /*Pegar o funcionário logado*/
+            string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            //var id_fun = HttpContext.User.FindFirst("Id_funcionario").Value;
+            usuario = UserManager.FindByIdAsync(IdLogado).Result;
+            f = _controllerFuncionario.BuscarID(usuario.Id_funcionario);
+            ListaVendas = await _vendaController.ListarTodos(f.Fk_id_empresa);
+            ListaVendas = ListaVendas.OrderByDescending(x => x.Id_venda).ToList();
+            ListaVendas2.AddRange(ListaVendas);
+        }catch(Exception ex)
+        {
+            //filtro = ex.Message;
+            // statusMensagem.ShowModal("Erro", "Erro ao listar as vendas!");
+        }
+    }
+
+    private void Filtrar()
+    {
+        ListaVendas.Clear();
+        ListaVendas.AddRange(ListaVendas2);
+        try
+        {
+            if (filtro == "codigo")
+            {
+                List<Venda> listaServicoF = ListaVendas.Where(x => x.Id_venda.ToString().ToLower().Contains(busca.ToLower())).ToList();
+                ListaVendas.Clear();
+                ListaVendas.AddRange(listaServicoF);
+            }
+            else if (filtro == "data")
+            {
+                List<Venda> listaServicoF = ListaVendas.Where(x => x.DataVenda.ToString().ToLower().Contains(busca.ToLower())).ToList();
+                ListaVendas.Clear();
+                ListaVendas.AddRange(listaServicoF);
+            }
+            else if (filtro == "valor")
+            {
+                List<Venda> listaServicoF = ListaVendas.Where(x => x.ValorFinal.ToString().ToLower() == busca.ToLower()).ToList();
+                ListaVendas.Clear();
+                ListaVendas.AddRange(listaServicoF);
+            }else if(filtro == "cliente" && busca.Length > 0)
+            {
+                List<Venda> listaServicoF = ListaVendas.Where(venda =>
+                    (venda.Cliente is ClientePF clientePF &&
+                     clientePF.Nome_cli != null &&
+                     clientePF.Nome_cli.ToLower().Contains(busca.ToLower())) ||
+                    (venda.Cliente is ClientePJ clientePJ &&
+                     clientePJ.NomeFantasia_PJ != null &&
+                     clientePJ.NomeFantasia_PJ.ToLower().Contains(busca.ToLower()))
+                    ).ToList();
+
+                ListaVendas.Clear();
+                ListaVendas.AddRange(listaServicoF);
+            }
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    private async Task AbrirVenda()
+    {
+        try
+        {
+            List<Caixa> listaCaixa = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+            listaCaixa = listaCaixa.Where(x => x.Status.ToLower() == "aberto").ToList();
+            //listaCaixa.Any() retorna true se tiver elemento
+            if (listaCaixa.Any())
+            {
+                NavigationManager.NavigateTo($"/vendas/cadastro");
+            }
+            else
+            {
+                statusMensagem.ShowModal("Caixa", "Você não possui caixa aberto!");
+            }
+        }catch(Exception ex)
+        {
+
+        }
+
+    }
+
+    Venda vendaExcluir = new Venda();
+    private async Task ExcluirVenda(int id_venda)
+    {
+        vendaExcluir = ListaVendas2.FirstOrDefault(x => x.Id_venda == id_venda);
+        Caixa cxV =  await _caixaController.BuscarId(vendaExcluir.Caixa_venda.Id_caixa);
+        if (vendaExcluir.Caixa_venda.Funcionario_Caixa.Id_funcionario != usuario.Id_funcionario)
+        {
+            await statusMensagem.ShowModalAwait("Atenção", "Somente o vendedor pode cancelar a venda!");
+        }
+        else if (cxV.Status.ToLower() != "aberto".ToLower())
+        {
+            await statusMensagem.ShowModalAwait("Atenção", "O caixa da venda está fechado, é necessário reabrir o mesmo para cancelar a venda!");
+        }
+        else
+        {
+            JSRuntime.InvokeAsync<string>("modal.showModal", "modalExcluirVenda");
+        }
+
+    }
+
+    private async Task ConfirmarExclusao(bool confirm)
+    {
+        if (confirm)
+        {
+            try
+            {
+                await _vendaController.CancelarVenda(vendaExcluir.Id_venda);
+                /*
+                Caixa cx = new Caixa();
+                cx =  await _caixaController.BuscarId(vendaExcluir.Caixa_venda.Id_caixa);
+
+                    foreach(Recebimento r in vendaExcluir.RecebimentoLista)
+                        {
+                        if (r.StatusRecebimento.ToLower() == "fechado")
+                        {
+                        cx.Total_entradas -= Math.Round(r.ValorParcela, 2);
+                        cx.Saldo_final -= Math.Round(r.ValorParcela, 2);
+                        if (double.Parse(r.AliquotaParcela) > 0)
+                            {
+                            cx.Total_saidas -= Math.Round(double.Parse(r.AliquotaParcela), 2);
+                            cx.Saldo_final += Math.Round(double.Parse(r.AliquotaParcela), 2);
+                }
+                }
+
+                }
+                //await _vendaController.ExcluirVenda(vendaExcluir);
+                //await _caixaController.AtualizarAwait(cx);
+                */
+                await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalExcluirVenda");
+                ListaVendas2.Clear();
+                ListaVendas.Clear();
+                ListaVendas2 = await _vendaController.ListarTodos(f.Fk_id_empresa);
+                ListaVendas2 = ListaVendas2.OrderByDescending(x => x.Id_venda).ToList();
+                ListaVendas.AddRange(ListaVendas2);
+                statusMensagem.ShowModal("Exclusão", "Venda excluída com sucesso!");
+            }catch(Exception ex)
+            {
+                await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalExcluirVenda");
+                statusMensagem.ShowModalAwait("Erro", ex.Message);
+            }            
+        }
+        else
+        {
+            await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalExcluirVenda");
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+    protected void ConfirmarRecibo(bool confirm) { }
+    ReciboVenda reciboVenda = new ReciboVenda();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}
+
+
+
+<ReciboVenda @ref="reciboVenda" UserChouse="ConfirmarRecibo"/>
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+
+<div class="modal fade show" id="modalExcluirVenda" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Excluir</h5>
+                <button type="button" @onclick='eventArgs=>ConfirmarExclusao(false)' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Você tem certeza que deseja excluir a venda do Nº @vendaExcluir.Id_venda, Data @vendaExcluir.DataVenda, Valor @vendaExcluir.ValorFinal
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" @onclick='() => ConfirmarExclusao(true)'>Sim</button>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>ConfirmarExclusao(false)'>Não</button>
+            </div>
+        </div>
+    </div>
+</div>

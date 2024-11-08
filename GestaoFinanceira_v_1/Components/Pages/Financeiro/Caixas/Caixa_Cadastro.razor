@@ -1,0 +1,265 @@
+﻿@using GestaoFinanceira_v_1.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@using System.Security.Claims
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@inject FuncionarioController _funcionariosController
+@inject CaixaController _caixaController
+@inject BancoController _bancoController
+@inject EmpresaController _empresaController
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@rendermode InteractiveServer
+
+
+<div class="modal fade show" id="modalCaixa" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #898686;">
+                <h4 class="modal-title text-white">
+                    <strong>
+                        &nbsp <i class="bi bi-book"></i>
+                        &nbsp   &nbsp  Abri Caixa
+                    </strong>
+                </h4>
+                <button type="button" @onclick='eventArgs=>EscolharModal(false)' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (CaixaAberto)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <label>@mensagemAlerta</label>
+                    </div>
+                }
+                <EditForm Model="@caixaSalvar" OnValidSubmit="@Cadastrar_Caixa">
+                    <DataAnnotationsValidator />
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            <label>Funcionário Responsável *: </label>
+                            <InputSelect disabled id="funcionario"  @bind-Value="caixaSalvar.Fk_id_funcionario" class="form-select">
+                                <option value="@f.Id_funcionario">@f.Nome_completo</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                    <br />
+                    <div class="row">
+                        <div class="form-group col-md-6">
+                            <label>Data: </label>
+                            <InputDate disabled id="dataAbertura" @bind-Value="caixaSalvar.Data_abertura" class="form-control" />
+                        </div>                        
+                        <div class="form-group col-md-6">
+                            <label>Número do Caixa: </label>
+                            <InputText disabled id="numeroCaixa" @bind-Value="NumeroCaixa" class="form-control" />
+                        </div>
+                    </div>
+                    <br />
+                    <div class="row">
+                        <div class="form-group col-md-6">
+                            <label>Saldo Inicial: </label>
+                            <InputText disabled id="numeroCaixa" @bind-Value="SaldoInicial" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Tipo *: </label>
+                            <InputText disabled id="tipoCaixa" @bind-Value="caixaSalvar.Tipo" class="form-control" />
+                        </div>
+                    </div>
+                    @if(caixaSalvar.Tipo == "Banco")
+                    {
+                        <br />
+                        <div class="row">
+                            <div class="form-group col-md-12">
+                                <label>Banco *: </label>
+                                <InputSelect @onclick="BancoSelecionado" required id="id_banco" @bind-Value="caixaSalvar.Fk_id_banco" class="form-select">
+                                    <option value="">--Selecionar--</option>
+                                     @if (ListaBancos != null)
+                                    {
+                                        @foreach (Banco b in ListaBancos)
+                                        {
+                                            <option value="@b.Id_banco"> @b.Descricao</option>
+                                        }
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+                    }
+                    <br />
+                    @teste
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            <label>Descrição *: </label>
+                            <InputText id="descricao" @bind-Value="caixaSalvar.Descricao" class="form-control" />
+                        </div>
+                    </div>                
+                    <br />
+            
+                    <div class="d-flex justify-content-center">
+                        <button type="submit" class="btn btn-primary">
+                            <strong>
+                                Abrir &nbsp <i class="bi bi-book"></i>
+                            </strong>
+                        </button>
+                        <br />
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<bool> UserChouse { get; set; }
+
+    string? NumeroCaixa, SaldoInicial = "0.00", teste;
+    string? mensagemAlerta;
+    Caixa caixaSalvar = new Caixa();
+    private bool CaixaAberto;
+    Funcionario f = new Funcionario();
+    //public List<Funcionario> Listafuncionarios{ get; set; } = new List<Funcionario>();
+    public List<Banco> ListaBancos { get; set; } = new List<Banco>();
+    ApplicationUser? usuario = new ApplicationUser();
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            if (!string.IsNullOrEmpty(IdLogado))
+            {
+                usuario = await UserManager.FindByIdAsync(IdLogado);            
+            }
+        }catch(Exception ex)
+        {
+            teste = ex.Message;
+        }
+
+    }
+
+    public async Task ShowModalCaixa(long caixaNumero,string tipo)
+    {
+        try
+        {
+            caixaSalvar = new Caixa();            
+            CaixaAberto = false;
+            caixaSalvar.Fk_id_funcionario = usuario.Id_funcionario;            
+            NumeroCaixa = caixaNumero.ToString();
+            caixaSalvar.Tipo = tipo;
+            SaldoInicial = "0.00";
+            ListaBancos = await _bancoController.ListarTodos();
+            f = await _funcionariosController.BuscarIDAwait(usuario.Id_funcionario);
+            if (string.Equals(caixaSalvar.Tipo, "operacional", StringComparison.OrdinalIgnoreCase))
+            {
+                Caixa cxAnterior = await _caixaController.UltimoFuncionarioOperacional(f.Id_funcionario, f.Fk_id_empresa);
+                SaldoInicial = cxAnterior.Saldo_final.ToString("C2");
+            }
+            await JSRuntime.InvokeAsync<string>("modal.showModal", "modalCaixa");            
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Erro ao mostrar modal: {ex.Message}");
+            await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalCaixa");
+            statusMensagem.ShowModal("Erro", "Ocorreu um erro ao abrir o modal.");
+        }
+    }
+
+    private async Task  Cadastrar_Caixa()
+    {
+        try
+        {
+            bool x = await _caixaController.VerificarCaixaOperacionalOuBanco(caixaSalvar.Fk_id_funcionario, caixaSalvar.Tipo, caixaSalvar.Fk_id_banco);
+            if (x == true)
+            {
+                Caixa cxAnterior = new Caixa();
+
+                caixaSalvar.Fk_id_empresa = f.Fk_id_empresa;
+                await _caixaController.SalvarOp(caixaSalvar);
+
+                caixaSalvar = new Caixa();
+                EscolharModal(true);
+                CaixaAberto = false;
+            }
+            else
+            {
+                CaixaAberto = true;
+                if(caixaSalvar.Tipo?.ToLower() == "operacional")
+                {
+                    mensagemAlerta = "Funcionário já possui caixa operacional aberto!";
+                }
+                else if (caixaSalvar.Tipo?.ToLower() == "banco")
+                {
+                    mensagemAlerta = "Funcionário já possui caixa aberto no banco selecionado!";
+                }
+            }
+        }catch(Exception ex)
+        {
+            await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalCaixa");
+            statusMensagem.ShowModal("Erro", ex.Message);
+            //EscolharModal(false);
+        }
+    }
+
+    /*Esse método é responsável por receber a ação do modal e retornar o 
+     * item escolhido para a página de origem. Nesse componte, é usado para fechar a página sem salvar*/
+    public void EscolharModal(bool valor)
+    {
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalCaixa");
+        UserChouse.InvokeAsync(valor);
+    }
+
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+    */
+    protected void ConfirmarMensagem(bool confirm)
+    {
+    }
+
+    public async Task BancoSelecionado()
+    {
+        try
+        {          
+            if (caixaSalvar.Fk_id_banco > 0)
+            {
+                Caixa cxAnterior = await _caixaController.UltimoFuncionarioBanco(f.Id_funcionario, f.Fk_id_empresa, caixaSalvar.Fk_id_banco);
+                SaldoInicial = cxAnterior.Saldo_final.ToString("C2");
+            }
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao buscar o saldo do caixa anterior");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" Titulo="Cadastro"/>

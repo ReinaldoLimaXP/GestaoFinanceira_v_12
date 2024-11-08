@@ -1,0 +1,89 @@
+﻿@page "/relatorios/relatoriorecebimento"
+@using System.ComponentModel.DataAnnotations;
+@using System.ComponentModel.DataAnnotations.Schema
+@using GestaoFinanceira_v_1.Components.Shared
+@using GestaoFinanceira_v_1.Utilitarios
+@inject FuncionarioController _funcionarioController
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+
+<div>
+    <div class="col-md-8">
+        <h2><b>Relatórios de Recebimentos</b></h2>
+        <h4>Preencha os dados para a emissão do relatório.</h4>
+        <hr />
+        <EditForm Model="@e" OnValidSubmit="Emitir" FormName="Cad_venda">
+                <DataAnnotationsValidator />
+            <strong>Período *</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-6">
+                    <label>Data Início *: </label>
+                    <InputDate id="dataVenda" @bind-Value="e.DataInicio" class="form-control" />
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Data Final *: </label>
+                    <InputDate id="horaVenda" @bind-Value="e.DataFim" class="form-control" />
+                </div>
+            </div>
+            <br />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <label>Tipo *: </label>
+                    <InputSelect @bind-Value="e.Formato" id="formato" class="form-select">
+                        <option value="">Selecionar</option>
+                        <option value="1">Resumido</option>
+                        <option value="2">Completo</option>
+                    </InputSelect>
+                </div>
+            </div>
+            <br />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <a href="/relatorios">
+                        <button type="button" class="btn btn-danger">
+                            Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                        </button>
+                    </a>
+                    <button type="submit" style="float:right" class="btn btn-secondary">
+                        Emitir &nbsp <i class="bi bi-file-earmark-text"></i>
+                    </button>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    RelReceb e = new RelReceb();
+    public async Task Emitir()
+    {
+        
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+    internal class RelReceb
+    {
+        [Required]
+        public DateOnly DataInicio { get; set; }
+        [Required]
+        public DateOnly DataFim { get; set; }
+        [Required]
+        public int? Formato { get; set; }
+
+        public RelReceb()
+        {
+            DataInicio = DateOnly.FromDateTime(DateTime.Now);
+            DataFim = DateOnly.FromDateTime(DateTime.Now);
+        }
+    }
+}

@@ -1,0 +1,276 @@
+﻿@page "/veiculos"
+@inject NavigationManager NavigationManager
+@inject VeiculoController _veiculosController
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+
+<PageTitle>Veículos</PageTitle>
+
+<h1><b>Consulta de Veículos</b></h1>
+<hr />
+
+<p>Consulte um veículo cadastrado no sistema e utilize as opções disponíveis</p>
+
+<div class="input-group col-md-12">
+
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown="@Enter" @onkeyup="@Enter"
+        @onkeypress="@Enter" />
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="zerar">--Selecionar--</option>
+            <option value="placa">Placa</option>
+            <option value="modelo">Modelo</option>
+            <option value="chassi">Chassi</option>
+            <option value="cliente">Cliente</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-1">
+        <br />
+        <a href="/veiculo/cadastro">
+            <button style="z-index:0;" class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                Novo <i class="bi bi-plus-circle"></i>
+            </button>
+        </a>
+    </div>
+</div>
+
+<br />
+
+@if ((listaVeiculo == null || listaVeiculo.Count <= 0) && busca == "")
+{
+    <p><em>Carregando os veículos...</em></p>
+}
+else if ((listaVeiculo == null || listaVeiculo.Count <= 0) && busca != "")
+{
+    <p><em>Veículos não encontrados com a busca!</em></p>
+}
+else
+{
+    <!--table table-striped table-bordered table-sm-->
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Plca</th>
+                <th>Modelo</th>
+                <th>Cor</th>
+                <th>Vínculado?</th>
+                <th>Cliente</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Veiculo veiculo in listaVeiculo)
+            {
+                <tr>
+
+                    <td>@veiculo.Placa_vei </td>
+                    <td>@veiculo.Modelo_vei</td>
+
+                    <td>
+                        @if(veiculo.Cor_vei is not null)
+                        {
+                            @veiculo.Cor_vei.NomeCor
+                        }
+                        
+                    </td>
+                    @if (veiculo.Fk_id_cliente is null || veiculo.Cliente is null)
+                    {
+                        <td>
+                            Não
+                        </td>
+                        <td>
+                            --
+                        </td>
+                    }
+                    else
+                    {
+                        <td>
+                            Sim 
+                        </td>
+                            @if(veiculo.Cliente is ClientePF)
+                            {
+                                try
+                                {
+                                    ClientePF c = veiculo.Cliente as ClientePF;
+                                    <td>
+                                        @c.Nome_cli
+                                    </td>
+                                }catch(Exception){}                               
+                            }
+                            else if (veiculo.Cliente is ClientePJ)
+                            {
+                                try
+                                {
+                                ClientePJ pj = veiculo.Cliente as ClientePJ;
+                                <td>
+                                    @pj.NomeFantasia_PJ
+                                </td>
+                            }
+                            catch (Exception) { }
+                        }
+                        else
+                        {
+                            <td>@veiculo.Cliente.Email_pessoal</td>
+                        }
+                    }
+                    <td>
+                        <td>
+                            <a href="/veiculo/imprimir/@veiculo.Id_veiculo">
+                                <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                            </a>
+                        </td>
+                        <td>
+                            <a href="/veiculo/editar/@veiculo.Id_veiculo">
+                                <button class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                            </a>
+                        </td>
+                        <td>
+                            <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(veiculo.Id_veiculo)'><i class="bi bi-trash3-fill"></i></button>
+                        </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string filtro = "zerar", busca = "";
+    string mensagemErro = "";
+
+    List<Veiculo> listaVeiculo { get; set; } = new List<Veiculo>();
+    List<Veiculo> listaVeiculo2 { get; set; } = new List<Veiculo>();
+    protected override async Task OnInitializedAsync()
+    {
+        try{
+            listaVeiculo = await _veiculosController.listarVeiculosWait();
+            listaVeiculo2.AddRange(listaVeiculo);
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro " + ex.Message);
+        }
+    }
+
+
+    private async Task Filtrar()
+    {
+        listaVeiculo.Clear();
+        listaVeiculo.AddRange(listaVeiculo2);
+        try
+        {
+            if (filtro == "modelo" || filtro == "zerar")
+            {
+                List<Veiculo> listaVeiculoT = listaVeiculo.Where(x => (x.Modelo_vei != null && x.Modelo_vei.ToLower().Contains(busca.ToLower()))).ToList();
+                listaVeiculo.Clear();
+                listaVeiculo.AddRange(listaVeiculoT);
+            }
+            else if (filtro == "placa")
+            {
+                List<Veiculo> listaServicoF = listaVeiculo.Where(x => (x.Placa_vei != null && x.Placa_vei.ToLower().Contains(busca.ToLower()))).ToList();
+                listaVeiculo.Clear();
+                listaVeiculo.AddRange(listaServicoF);
+            }
+            else if (filtro == "chassi")
+            {
+                List<Veiculo> listaServicoF = listaVeiculo
+                .Where(x => (x.Classis_vei != null && x.Classis_vei.ToLower().Contains(busca.ToLower()))).ToList();
+                listaVeiculo.Clear();
+                listaVeiculo.AddRange(listaServicoF);
+            }
+            else if (filtro == "cliente")
+            {
+                List<Veiculo> listaServicoF = listaVeiculo
+                .Where(x =>
+                    (x.Cliente is ClientePF clientePF &&
+                    clientePF.Nome_cli != null &&
+                    clientePF.Nome_cli.ToLower().Contains(busca.ToLower())) ||
+                   (x.Cliente is ClientePJ clientePJ &&
+                    clientePJ.NomeFantasia_PJ != null &&
+                    clientePJ.NomeFantasia_PJ.ToLower().Contains(busca.ToLower()))
+                   ).ToList();
+
+                listaVeiculo.Clear();
+                listaVeiculo.AddRange(listaServicoF);
+            }
+        }
+        catch (Exception)
+        {
+
+        }
+    }
+
+    public void Enter(KeyboardEventArgs e)
+    {
+        this.Filtrar();
+    }
+
+    private void CheckChanged()
+    {
+        this.Filtrar();
+    }
+
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    Veiculo veiculoExcluir = new Veiculo();
+    protected void ExibirmodalExcluir(int id_veiculo)
+    {
+        veiculoExcluir = listaVeiculo.SingleOrDefault(x => x.Id_veiculo == id_veiculo);
+        if (veiculoExcluir != null)
+        {
+            confirmar.ShowModalConfirmacao($"Você tem certeza que deseja excluir o veículo {veiculoExcluir.Modelo_vei} ?");
+        }
+    }
+
+
+    protected void ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                _veiculosController.Deletar(veiculoExcluir.Id_veiculo);
+                listaVeiculo.Remove(veiculoExcluir);
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagemModal("Erro", ex.Message);
+
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+     */
+    protected void ConfirmarMensagem(bool confirm) { }
+
+}
+
+
+
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+

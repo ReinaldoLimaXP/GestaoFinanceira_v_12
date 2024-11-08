@@ -1,0 +1,404 @@
+﻿@using GestaoFinanceira_v_1.Data
+@using Microsoft.EntityFrameworkCore
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@inject RecebimentoController _recebimentoController
+@inject DispositivoController _dispositivoController
+@inject CaixaController _caixaController
+@inject EncargoController _encargoController
+@inject HttpClient http
+@rendermode InteractiveServer
+
+<div class="modal fade show" id="modalRecebimento" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">      
+            <div class="modal-header" style="background-color: #898686;">
+                <h4 class="modal-title text-white">
+                    <strong>
+                        &nbsp   &nbsp  Receber Conta
+                    </strong>                    
+                </h4>
+                <button type="button" @onclick='eventArgs=>EscolharModal(false)' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>                
+            </div>
+               
+            <div class="modal-body">
+                <EditForm Model="recebimentoParcela" OnValidSubmit="@Receber">
+                    <strong>Dados do Recebimento</strong>
+                    <hr class="hrsemEspaco" />
+                    <div class="input-group col-md-12">
+                        <div class="form-group col-md-2">
+                            <label>ID Venda: </label>
+                            <!--<div class="col-sm-2">-->
+                            <InputNumber disabled id="id_venda" class="form-control  form-control" placeholder="" @bind-Value="recebimentoParcela.Fk_id_venda" />
+                        </div>
+                        &nbsp  &nbsp 
+                        <div class="form-group col-md-2">
+                            <label>Lançamento: </label>
+                            <InputDate disabled id="dataVenda" @bind-Value="recebimentoParcela.DataRegistro" class="form-control form-control" />
+                        </div>
+                        &nbsp &nbsp
+                        <div class="form-group col-md-2">
+                            <label>Vencimento: </label>
+                            <InputDate disabled id="dataVenda" @bind-Value="recebimentoParcela.DataVencimento" class="form-control form-control" />
+                        </div>
+                        <div class="form-group col-md-1">
+                        </div>
+                        &nbsp   &nbsp  &nbsp   &nbsp   &nbsp
+                        <div class="form-group col-md-4">
+                            <label>Caixa: </label>
+                            <InputSelect required id="vinculo" @bind-Value="recebimentoParcela.Fk_id_caixa" class="form-select">
+                                @if (recebimentoParcela.TipoPagamento?.ToLower() != "dinheiro")
+                                {
+                                    <option value="">Selecionar</option>
+                                    @if (caixasAbertoBanco != null)
+                                    {
+                                        @foreach (Caixa cx in caixasAbertoBanco)
+                                        {
+                                            <option value="@cx.Id_caixa"> @cx.Id_caixa - @cx.BancoCaixa?.Descricao</option>
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (caixaOperacional.Id_caixa > 0)
+                                    {
+                                        CaixaOperacional();
+                                        <option value="@caixaOperacional.Id_caixa"> @caixaOperacional.Id_caixa - @caixaOperacional.Tipo</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="">Selecionar</option>
+                                    }
+                                }
+                            </InputSelect>
+                        </div>
+
+                    </div>
+                    <br />
+                    <strong>Forma de Recebimento</strong> 
+                    <hr class="hrsemEspaco" />
+                    <div class="input-group col-md-14">
+                        <div class=" form-group col-md-3">
+                            <label><strong>Tipo *</strong></label>                            
+                            <InputText disabled id="status" class="form-control form-control" placeholder="" @bind-Value="recebimento" />
+                        </div>
+                        &nbsp  &nbsp  &nbsp
+                        @if (recebimento == "Promissória")
+                        {
+                        <InputRadioGroup required Name="tipopag" @bind-Value="recebimentoParcela.TipoPagamento">
+                            <div class=" form-group col-md-2">
+                                    <br />
+                                    <InputRadio class="form-check-input cursorpointer" id="@Tipopag[0]" Value="Tipopag[0]" @onblur="eventArgs=>SelecionarDispositivo()" @onclick='eventArgs=>SelecionarDispositivo()' />
+                                    <label class="cursorpointer" for="@Tipopag[0]">@Tipopag[0]</label>
+                            </div>
+                            <div class=" form-group col-md-2">
+                                <br />
+                                    <InputRadio class="form-check-input cursorpointer" id="@Tipopag[1]" Value="Tipopag[1]" @onblur="eventArgs=>SelecionarDispositivo()" @onclick='eventArgs=>SelecionarDispositivo()' />
+                                    <label class="cursorpointer" for="@Tipopag[1]">@Tipopag[1]</label>
+                            </div>
+                            <div class=" form-group col-md-3">
+                                    <br />
+                                    <InputRadio class="form-check-input cursorpointer" id="@Tipopag[2]" Value="Tipopag[2]" @onblur="eventArgs=>SelecionarDispositivo()" @onclick='eventArgs=>SelecionarDispositivo()' />
+                                    <label class="cursorpointer" for="@Tipopag[2]">@Tipopag[2]</label>
+                            </div>
+                        </InputRadioGroup>                        
+                        }
+                    </div>
+                    <br />
+                    <strong>Parcela</strong>
+                    <hr class="hrsemEspaco" />
+				    <div class="input-group col-md-12">
+                        <table class="table table-sm table-responsive-sm">
+                            <thead>
+									<tr>
+                                    <th>ID</th>
+										<th>Parcela</th>
+										<th>Vencimento</th>
+										<th>Valor</th>
+										<th>Status</th>
+									</tr>
+							</thead>
+                           <tbody>
+                                <tr>
+                                    <td>@recebimentoParcela.Id_recebimento</td>
+                                    <td>@recebimentoParcela.Nparcela</td>
+                                    <td>@recebimentoParcela.DataVencimento</td>
+                                    <td>@recebimentoParcela.ValorParcela.ToString("C2")</td>
+                                    <td class="text-danger"> <strong>@recebimentoParcela.StatusRecebimento</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="input-group col-md-12">
+                        <div class="form-group col-md-5">
+                            <strong>Observações</strong>
+                            <hr class="hrsemEspaco" />
+                        </div>
+                        &nbsp   &nbsp  &nbsp &nbsp
+                        <div class="form-group col-md-5">
+                            <strong>Encargos Bancários</strong>
+                            <hr class="hrsemEspaco" />
+                        </div>
+                    </div>
+                    <div class="input-group col-md-12">
+                        <div class="form-group col-md-5">
+                            <InputTextArea @bind-Value="recebimentoParcela.Observacao" rows="4" Cols="35"></InputTextArea>
+                        </div>
+                        &nbsp &nbsp
+                        <div class="form-group col-md-3">
+                            <label>Tipo/Dispositivo:</label>
+                            @if (recebimentoParcela.TipoPagamento == "Cartão Débito" && recebimento == "Promissória")
+                            {
+                                <InputSelect @onclick="SelecionarDispositivo" id="vinculo" @bind-Value="Id_dispositivoSelecionado" class="form-select">
+                                    <option value="0">Selecionar</option>
+                                    @if (ListDispositivos != null)
+                                    {
+                                        @foreach (Dispositivo dis in ListDispositivos)
+                                        {
+                                            <option value="@dis.Id_dispositivo"> @dis.Descricao</option>
+                                        }
+                                    }
+                                </InputSelect>
+                            }
+                            else
+                            {
+                                <InputSelect disabled @onclick="SelecionarDispositivo" id="vinculo" @bind-Value="Id_dispositivoSelecionado" class="form-select">
+                                    <option value="0">Selecionar</option>
+                                    @if (ListDispositivos != null)
+                                    {
+                                        @foreach (Dispositivo dis in ListDispositivos)
+                                        {
+                                            <option value="@dis.Id_dispositivo"> @dis.Descricao</option>
+                                        }
+                                    }
+                                </InputSelect>
+                            }
+                            <br />
+                            <button type="button" @onclick='eventArgs=>EscolharModal(false)' class="btn btn-danger">
+                                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                            </button>
+                        </div>
+                        &nbsp &nbsp
+                        <div class="form-group col-md-1">
+                            <label>Alíquota:</label>
+                            <InputNumber disabled id="porcentagemaliquota" @bind-Value="DispositoReceb.Alicota" class="form-control" />
+                        </div>
+                        &nbsp &nbsp
+
+                        <div class="form-group col-md-2">
+                            <label>Valor:</label>
+                            @if (recebimentoParcela.TipoPagamento == "Cartão Débito" || recebimentoParcela.TipoPagamento == "Cartão Crédito")
+                            {
+                                <InputText  id="valoraliquota" @bind-Value="recebimentoParcela.AliquotaParcela" class="form-control" />
+                            }
+                            else
+                            {
+                                <InputText disabled id="valoraliquota" @bind-Value="recebimentoParcela.AliquotaParcela" class="form-control" />
+                            }
+
+                            <br />
+
+                            <button type="submit" style="float:right" class="btn btn-success">
+                                Receber &nbsp <img src="imagens/sistema/icon _dollar_.png" width="10px"/>
+                            </button>
+                            @erro
+                        </div>
+
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<bool> UserChouse { get; set; }
+    Recebimento recebimentoParcela = new Recebimento();
+
+    private List<string> Tipopag { get; set; } = new List<string> {
+        "Dinheiro","Pix","Cartão Débito","Transferência TED/DOC"};
+
+    List<Dispositivo> ListDispositivos = new List<Dispositivo>();
+    private int? Id_dispositivoSelecionado = 0;
+    string recebimento = "", nomeCli = "", erro="";
+    long id_caixaAbertoUsuario;
+
+    //Irá receber o usuário logado
+    ApplicationUser usuario = new ApplicationUser();
+
+    //Irá receber todos os caixas aberto do tipo banco do usuário logado
+    List<Caixa> caixasAbertoBanco = new List<Caixa>();
+
+    //irá controlar o caixa operacional aberto do usuário
+    Caixa caixaOperacional = new Caixa();
+    protected override async Task OnInitializedAsync()
+    {
+
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+                ListDispositivos = _dispositivoController.ListarTodosAtivo();     
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    public async Task ShowModalRecebimento(int id_recebimento, ApplicationUser usuario)
+    {
+        try
+        {
+            if(id_recebimento > 0){
+                recebimentoParcela =  _recebimentoController.BuscarId(id_recebimento);
+                //id_caixaAbertoUsuario = id_caixa;
+                caixasAbertoBanco = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+                caixasAbertoBanco = caixasAbertoBanco.Where(
+                    x => x.Status.Equals("aberto", StringComparison.InvariantCultureIgnoreCase)
+                    && x.Tipo.Equals("banco", StringComparison.InvariantCultureIgnoreCase)).ToList();
+
+                caixaOperacional = await _caixaController.BuscarOperacionalAbertoFuncionario(usuario.Id_funcionario);
+                recebimento = ""+recebimentoParcela.TipoPagamento;           
+                if(recebimentoParcela.DispositivoRec is not null)
+                {
+                    DispositoReceb = recebimentoParcela.DispositivoRec;
+                    Id_dispositivoSelecionado = recebimentoParcela.DispositivoRec.Id_dispositivo;
+                }
+         
+                recebimento = recebimentoParcela.TipoPagamento;
+                await JSRuntime.InvokeAsync<string>("modal.showModal", "modalRecebimento");
+                nomeCli = "";
+                if(recebimentoParcela.Venda?.Cliente is not null)
+                {
+                    @if (recebimentoParcela.Venda?.Cliente is ClientePF)
+                    {
+                        try
+                        {
+                            ClientePF c = recebimentoParcela.Venda?.Cliente as ClientePF;
+                            nomeCli = c.Nome_cli;
+                        }
+                        catch (Exception) { }
+                    }
+                    else if (recebimentoParcela.Venda?.Cliente is ClientePJ)
+                    {
+                        try
+                        {
+                           ClientePJ pj = recebimentoParcela.Venda?.Cliente as ClientePJ;
+                            nomeCli = pj.NomeFantasia_PJ;
+                        }
+                        catch (Exception) { }
+                    }
+                }
+            }
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", ex.Message);
+        }
+
+    }
+
+    public void EscolharModal(bool valor)
+    {
+        try
+        {
+            JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalRecebimento");
+            //statusMensagem.ShowModal("Recebimento", "Erro ao receber o valor da parcela");
+            UserChouse.InvokeAsync(valor);
+        }catch(Exception ex)
+        {
+
+        }
+    }
+
+    public void CaixaOperacional()
+    {
+        recebimentoParcela.Fk_id_caixa = caixaOperacional.Id_caixa;
+    }
+
+    public async Task Receber()
+    {
+        try
+        {
+            recebimentoParcela.StatusRecebimento = "Fechado";
+            if (Id_dispositivoSelecionado > 0)
+            {
+                recebimentoParcela.Fk_id_dispositivo_rec = Id_dispositivoSelecionado;
+            }            
+            recebimentoParcela.DataPagamento = DateOnly.FromDateTime(DateTime.Now);
+            recebimentoParcela.HoraPagamento = DateTime.Now.TimeOfDay;
+            recebimentoParcela.AliquotaParcela = recebimentoParcela.AliquotaParcela.Replace("R", "").Replace("$", "");  
+            await _recebimentoController.ReceberParcela(recebimentoParcela);           
+            EscolharModal(true);
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine(ex.Message); // Log da exceção
+            await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalRecebimento");
+            statusMensagem.ShowModal("Erro", $"Erro ao receber o valor da parcela: {ex.Message}");
+        }
+    }
+
+    Dispositivo DispositoReceb = new Dispositivo();
+    private void SelecionarDispositivo()
+    {
+        try{
+            if (Id_dispositivoSelecionado > 0 && recebimentoParcela.TipoPagamento == "Cartão Débito")
+            {
+                try
+                {
+                    DispositoReceb = ListDispositivos.FirstOrDefault(x => x.Id_dispositivo == Id_dispositivoSelecionado);
+                    DispositoReceb.Alicota = Math.Round(DispositoReceb.Alicota, 2);
+                    recebimentoParcela.AliquotaParcela = (DispositoReceb.Alicota * recebimentoParcela.ValorParcela / 100).ToString();
+                    //ValorAlicotaParcela = "R$ "+recebimentoParcela.AliquotaParcela;
+                }catch(Exception ex)
+                {
+                    
+                }
+            }
+            else
+            {
+                DispositoReceb = new Dispositivo();
+                recebimentoParcela.AliquotaParcela = "0.00";
+                //ValorAlicotaParcela = "R$ 0.00";
+                Id_dispositivoSelecionado = 0;
+            }
+        }catch (Exception ex)
+        {
+
+        }
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        try
+        {
+            if (jsModule is not null)
+            {
+                await jsModule.DisposeAsync();
+            }
+        }catch(Exception ex)
+        {
+            
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+

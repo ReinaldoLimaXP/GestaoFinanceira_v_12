@@ -1,0 +1,320 @@
+﻿@page "/caixas/transferir/{id_caixa:long}"
+@using GestaoFinanceira_v_1.Data
+@using Microsoft.AspNetCore.Identity
+@using System.Globalization;
+@using System.Security.Claims
+@inject CaixaController _caixaController
+@inject FuncionarioController funcionarioController
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<h1><b>Transferência Entre Caixas</b></h1>
+<hr />
+
+<p>Visualize as informações do caixa aberto e escolha uma das opções</p>
+<div class="input-group col-md-12">
+    <div class="form-group col-md-2">
+        <label>Número:</label>
+        <InputNumber disabled @bind-Value="CaixaSangria.Id_caixa" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Data Abertura:</label>
+        <InputDate disabled @bind-Value="CaixaSangria.Data_abertura" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Data Fechamento:</label>
+        <InputText disabled @bind-Value="dataFechamento" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Status:</label>
+        <InputText disabled @bind-Value="CaixaSangria.Status" class="form-control" />
+    </div>
+</div>
+<br />
+<div class="input-group col-md-12">
+    <div class="form-group col-md-2">
+        <label>Saldo Inicial:</label>
+        <InputText disabled @bind-Value="saldo_inicial" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Total de Entradas:</label>
+        <InputText disabled @bind-Value="total_entradas" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Total de Saídas:</label>
+        <InputText disabled @bind-Value="total_saidas" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Saldo Final:</label>
+        <InputText disabled @bind-Value="saldo_final" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+</div>
+<br />
+<EditForm Model="sangria" OnValidSubmit="SangrarCaixa" FormName="sangria">
+    <ObjectGraphDataAnnotationsValidator />
+    <div class="input-group col-md-12">
+        <div class="form-group col-md-5">
+            <label>Caixa Banco Destino *:</label>            
+            <InputSelect id="funcionario" @bind-Value="sangria.Fk_id_caixaDestino" class="form-select">
+                <option value="">--Selecionar--</option>
+                @foreach (Caixa cx in CaixasContaList)
+                {
+                    <option value="@cx.Id_caixa">@cx.Id_caixa   &nbsp @cx.Descricao &nbsp @cx.BancoCaixa?.Descricao  &nbsp @cx.Saldo_final.ToString("C2") </option>
+                }
+            </InputSelect>
+        </div>
+        &nbsp   &nbsp  &nbsp &nbsp
+        <div class="form-group col-md-2">
+            <label>Valor *:</label>
+            <InputText required  onkeyup="moedaFormat(this);" @bind-Value="valorTransferir" class="form-control" />
+        </div>
+        &nbsp   &nbsp  &nbsp &nbsp
+        <div class="form-group col-md-2">
+            <br />
+            <button type="submit" class="btn-transferir btn">
+                Transferir &nbsp <i class="bi bi-arrow-left-right"> </i>
+            </button>
+        </div>
+    </div>
+    <br />
+    <div class="input-group col-md-12">
+        <div class="form-group col-md-9">
+            <label>Observação:</label>
+            <InputText  @bind-Value="sangria.Observacao" class="form-control" />
+        </div>
+    </div>
+</EditForm>
+<br />
+<div class="input-group col-md-8">
+<div class="form-group col-md-9">
+<table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Data</th>
+                <th>Horário</th>
+                <th>Caixa Banco</th>
+                <th>Valor Sangria</th>
+                <td></td>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Sangria a in sangriaList)
+            {
+                <tr>
+                    <td>@a.Id_sangria</td>
+                    <td>@a.DataSangria</td>
+                    <td>@a.HoraSangria</td>
+                    <td>@a.CaixaDestino.Descricao</td>
+                    <td>@a.ValorSangria.ToString("C2")</td>
+                    <td>
+                        <label>&nbsp</label>
+                        <button class="btn btn-danger" @onclick='()=>ShowwCancelarSangria(a.Id_sangria)'>
+                            <i class="bi bi-trash3-fill"></i>
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+</table>
+</div>
+</div>
+
+<div class="form-group col-md-9">
+    <div class="d-flex flex-row-reverse">
+    <div class="col-md-2">
+        <label> Total: </label>
+        <InputText disabled id="VendaComDesconto" @bind-Value="TotalSangria" class="form-control" />
+    </div>
+    </div>
+</div>
+
+<div class="form-group">
+    <a href="/caixas">
+        <button type="button" class="btn btn-danger">
+            Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+        </button>
+    </a>
+</div>
+<br />
+@code {
+    [Parameter]
+    public long id_caixa { get; set; }
+    Caixa CaixaSangria = new Caixa();
+    List<Caixa> CaixasContaList = new List<Caixa>();
+    string dataFechamento = "  /  /    ";
+    string saldo_final, total_saidas, total_entradas, saldo_inicial, valorTransferir = "0,00", TotalSangria;
+    Sangria sangria = new Sangria();
+    List<Sangria> sangriaList = new List<Sangria>();
+    Funcionario funcLogado;
+    ApplicationUser usuario = new ApplicationUser();
+    protected override async Task OnInitializedAsync()
+    {
+        try{
+            /*Pegar o funcionário logado*/
+            string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            //var id_fun = HttpContext.User.FindFirst("Id_funcionario").Value;
+            usuario = UserManager.FindByIdAsync(IdLogado).Result;
+            funcLogado = await funcionarioController.BuscarIDAwait(usuario.Id_funcionario);
+
+            CaixaSangria = await _caixaController.BuscarId(id_caixa);
+            saldo_final = CaixaSangria.Saldo_final.ToString("C2");
+            total_saidas = CaixaSangria.Total_saidas.ToString("C2");
+            total_entradas = CaixaSangria.Total_entradas.ToString("C2");
+            saldo_inicial = CaixaSangria.Saldo_inicial.ToString("C2");
+            if (CaixaSangria.Status == "Fechado")
+            {
+                dataFechamento = CaixaSangria.Data_fechamento.ToString();
+            }
+            CaixasContaList = _caixaController.ListarTodos(funcLogado.Fk_id_empresa).Where(x => x.Tipo.ToLower() == "banco" && x.Status.ToLower()=="aberto").OrderByDescending(x=>x.Id_caixa).ToList();
+            sangriaList = await _caixaController.ListaSangriaCaixa(id_caixa);
+            TotalSangria = sangriaList.Sum(x => x.ValorSangria).ToString("F2");
+        }catch(Exception ex)
+        {
+
+        }
+    }
+
+    public async Task SangrarCaixa()
+    {
+        if (double.Parse(valorTransferir) <= CaixaSangria.Saldo_final)
+        {
+            try
+            {
+                sangria.ValorSangria = double.Parse(valorTransferir);
+                sangria.Fk_id_caixaOrigem = CaixaSangria.Id_caixa;
+                await _caixaController.RealizarSangria(sangria);
+                await statusMensagem.ShowModalAwait("Sangria", "Sangria realizada com sucesso!");
+                
+                /*Atualizar a lista de sangria na página para o usuário*/
+                sangriaList.Add(sangria);
+                sangria = new Sangria();
+                TotalSangria = sangriaList.Sum(x => x.ValorSangria).ToString("F2");
+
+                /*Buscar o caixa que está sofrendo a sangria com os dados atualizados*/
+                CaixaSangria = await _caixaController.BuscarId(id_caixa);
+                saldo_final = CaixaSangria.Saldo_final.ToString("C2");
+                total_saidas = CaixaSangria.Total_saidas.ToString("C2");
+                total_entradas = CaixaSangria.Total_entradas.ToString("C2");
+                saldo_inicial = CaixaSangria.Saldo_inicial.ToString("C2");
+            }
+            catch (Exception ex)
+            {
+                await statusMensagem.ShowModalAwait("Erro", ex.Message);
+            }
+        }
+        else
+        {
+            statusMensagem.ShowModal("Operação Inválida", "Saldo insuficiente!");
+        }
+    }
+
+    Sangria sangriaCancelar = new Sangria();
+    public void ShowwCancelarSangria(int id_sangria)
+    {
+        try
+        {
+            JSRuntime.InvokeAsync<string>("modal.showModal", "modalEstornoSangria");
+            sangriaCancelar = sangriaList.FirstOrDefault(x => x.Id_sangria == id_sangria);
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    public async Task CancelarSangria()
+    {
+        try
+        {
+            // await _caixaController.AtualizarAwait(CaixaSangria);
+            await _caixaController.CancelarSangria(sangriaCancelar);
+
+
+            sangriaList.Remove(sangriaCancelar);
+            FecharModal();
+            await statusMensagem.ShowModalAwait("Cancelamento", "Sangria cancelada com sucesso!");
+            TotalSangria = sangriaList.Sum(x => x.ValorSangria).ToString("F2");
+
+            CaixaSangria = await _caixaController.BuscarId(id_caixa);
+            saldo_final = CaixaSangria.Saldo_final.ToString("C2");
+            total_saidas = CaixaSangria.Total_saidas.ToString("C2");
+            total_entradas = CaixaSangria.Total_entradas.ToString("C2");
+            saldo_inicial = CaixaSangria.Saldo_inicial.ToString("C2");
+        }catch(Exception ex)
+        {
+            FecharModal();
+            await statusMensagem.ShowModalAwait("Erro", "Erro ao cancelar a sangria!");
+        }
+    }
+
+    public void FecharModal()
+    {
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalEstornoSangria");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await jsModule.InvokeAsync<IJSObjectReference>(
+                  "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                //mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+<div class="modal fade show" id="modalEstornoSangria" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cancelar o pagamento</h5>
+                <button type="button" @onclick='eventArgs=>FecharModal()' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Tem certeza que deseja cancelar o pagamento?
+                </p>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" @onclick='() =>FecharModal()'>Não</button>
+                <button type="button" class="btn btn-danger" @onclick='() =>CancelarSangria()'>Sim</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,293 @@
+﻿@page "/caixas/detalhe/{id_caixa:long}"
+@using GestaoFinanceira_v_1_0.Controllers
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Data
+@using GestaoFinanceira_v_1.Utilitarios
+@inject NavigationManager NavigationManager
+@inject CaixaController _caixaController
+@inject RecebimentoController _recebimentoController
+@inject DespesaController _controllerDespesas
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<PageTitle>Caixas</PageTitle>
+
+
+<h1><b>Controlar Caixa @tipoCaixa</b></h1>
+
+
+<p>Visualize as informações do caixa aberto e escolha uma das opções</p>
+<hr />
+
+<div class="input-group col-md-12">
+    <div class="form-group col-md-1">
+    <label>Número:</label>
+        <InputNumber disabled @bind-Value="CaixaDetalhe.Id_caixa" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Data Abertura:</label>
+        <InputDate disabled @bind-Value="CaixaDetalhe.Data_abertura" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Data Fechamento:</label>
+        <InputText disabled @bind-Value="dataFechamento" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-3">
+        <label>Status:</label>
+        <InputText disabled @bind-Value="CaixaDetalhe.Status" class="form-control" />
+    </div>
+</div>
+<br />
+<div class="input-group col-md-12">
+    <div class="form-group col-md-2">
+        <label>Saldo Inicial:</label>
+        <InputText disabled @bind-Value="saldo_inicial" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Total de Entradas:</label>
+        <InputText disabled @bind-Value="total_entradas" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Total de Saídas:</label>
+        <InputText disabled @bind-Value="total_saidas" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+    <div class="form-group col-md-2">
+        <label>Saldo Final:</label>
+        <InputText disabled @bind-Value="saldo_final" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp &nbsp
+</div>
+<br />
+<div class="input-group col-md-12">
+    <div class="form-group col-md-6">
+        <label>Funcionário:</label>
+        <InputText disabled @bind-Value="CaixaDetalhe.Funcionario_Caixa.Nome_completo" class="form-control" />
+    </div>
+</div>
+<br />
+
+
+
+<div class="row col-md-12 d-flex justify-content-center align-items-center">
+    <InputRadioGroup required Name="Emissao" @bind-Value="tipoC">
+        @foreach (string em in Opcaoes)
+        {
+            <div class="form-group col-md-2">
+                    <InputRadio class="form-check-input cursorpointer" id="@em" Value="em" />
+                    <label class="cursorpointer" for="@em">@em</label>
+                </div>
+        }
+    </InputRadioGroup>
+</div>
+<br />
+
+<div class="row">
+    <div class="form-group col-md-4">
+        <a href="/caixas">
+            <button type="button" class="btn btn-danger">
+                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+            </button>
+        </a>
+    </div>
+    <div class="form-group col-md-2">
+        <a href="/recebimentos">
+        <button type="submit" class="btn btn-success">
+            Receber &nbsp <img src="imagens/sistema/icon _dollar_.png" width="10px" />
+        </button>
+        </a>
+    </div>
+    <div class="form-group col-md-4">
+        <a href="/pagamentos">
+        <button class="btn-pagamento btn">
+            Pagar &nbsp <i class="bi bi-credit-card"> </i>
+        </button>
+        </a>
+    </div>
+    <div class="form-group col-md-2">
+        <a href="caixas/transferir/@CaixaDetalhe.Id_caixa">
+        <button class="btn-transferir btn">
+            Transferir &nbsp <i class="bi bi-arrow-left-right"> </i>
+        </button>
+        </a>
+    </div>
+</div>
+<br />
+
+
+<table class="table table-sm table-responsive-sm">
+    <thead>
+        <tr>
+            <th>Tipo</th>
+            <th>Forma</th>
+            <th>Valor</th>
+            <th>Encargos</th>
+            <th>Parcela</th>
+            <th>Conta</th>
+            <th>Registro</th>
+            <th>Status</th>
+            <th>Opções</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (tipoC == "Recebimentos")
+        {
+            @foreach (Recebimento rec in ListRecebimento)
+            {
+                <tr>
+                    <td>Recebimento</td>
+                    <td>@rec.TipoPagamento</td>
+                    <td>@rec.ValorParcela.ToString("C2")</td>
+                    <td>@rec.AliquotaParcela</td>
+                    <td>@rec.Nparcela</td>
+                    <td>@rec.Plano.Descricao</td>
+                    <td>@rec.DataPagamento</td>
+                    @if (@rec.StatusRecebimento == "Aberto")
+                    {
+                        <td class="text-danger"><strong>@rec.StatusRecebimento</strong></td>
+                    }
+                    else
+                    {
+                        <td class="text-success"><strong>@rec.StatusRecebimento</strong></td>
+                    }
+                    <td>
+
+                        <button class="btn-olho btn" @onclick="() => ShowRecibo(rec.Fk_id_venda)"><i class="bi bi-eye-fill"></i></button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            @foreach (Despesa des in ListPagamentos)
+            {
+                <tr>
+                    <td>Pagamento</td>
+                    <td>@des.TipoPagamento</td>
+                    <td>@des.Valor.ToString("C2")</td>
+                    <td>--</td>
+                    <td>1/1</td>
+                    <td>@des.PlanoPag.Descricao</td>
+                    <td>@des.Datalacamento</td>
+                    @if (@des.Status_des == "Aberto")
+                    {
+                        <td class="text-danger"><strong>@des.Status_des</strong></td>
+                    }
+                    else
+                    {
+                        <td class="text-success"><strong>@des.Status_des</strong></td>
+                    }
+                    <td>
+                        <a href="pagamentoDetalhe/@des.Id_despesa">
+                            <button class="btn-olho btn">
+                                 <i class="bi bi-eye-fill"></i>
+                            </button>
+                        </a>
+                    </td>
+                </tr>
+            }
+        }
+
+    </tbody>
+</table>
+
+   
+
+
+@code {
+    [Parameter]
+    public long id_caixa { get; set; }
+    List<string> Opcaoes { get; set; } = new List<string> {"Recebimentos", "Pagamentos" };
+    string tipoC = "Recebimentos";
+    Caixa CaixaDetalhe = new Caixa
+    {
+        BancoCaixa = new Banco(),
+        Funcionario_Caixa = new Funcionario(),
+        EmpresaCaixa = new Empresa()
+    };
+    string saldo_final, total_saidas, total_entradas, saldo_inicial;
+    string dataFechamento = "  /  /    ";
+    List<Recebimento> ListRecebimento = new List<Recebimento>();
+    List<Despesa> ListPagamentos = new List<Despesa>();
+    List<Sangria> SangriaRecebidas = new List<Sangria>();
+    string? tipoCaixa;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            CaixaDetalhe = await _caixaController.BuscarId(id_caixa);
+            tipoCaixa = CaixaDetalhe.Tipo;
+            saldo_final = CaixaDetalhe.Saldo_final.ToString("C2");
+            total_saidas = CaixaDetalhe.Total_saidas.ToString("C2");
+            total_entradas = CaixaDetalhe.Total_entradas.ToString("C2");
+            saldo_inicial = CaixaDetalhe.Saldo_inicial.ToString("C2");
+            if (CaixaDetalhe.Status == "Fechado")
+            {
+                dataFechamento = CaixaDetalhe.Data_fechamento.ToString();
+            }
+            ListRecebimento = _recebimentoController.ListarTodos().Where(x => x.Fk_id_caixa == id_caixa).Where(y => y.StatusRecebimento.ToLower() == "fechado").ToList();
+            ListPagamentos = await _controllerDespesas.ListarDespesasawait();
+            ListPagamentos = ListPagamentos.Where(x => x.Fk_id_caixa == id_caixa).Where(x=>x.Status_des.ToLower()=="fechado").ToList();
+            SangriaRecebidas = await _caixaController.SangriaRecebida(id_caixa);
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", ex.Message);
+        }
+
+    }
+
+    private async Task ShowRecibo(int? id_venda)
+    {
+        if(id_venda > 0)
+        {
+            await reciboVenda.ShowModalModal(id_venda);
+        }
+    }
+
+    ReciboVenda reciboVenda = new ReciboVenda();
+    protected void ConfirmarRecibo(bool confirm) { }
+    
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem"/>
+<ReciboVenda @ref="reciboVenda" UserChouse="ConfirmarRecibo" />

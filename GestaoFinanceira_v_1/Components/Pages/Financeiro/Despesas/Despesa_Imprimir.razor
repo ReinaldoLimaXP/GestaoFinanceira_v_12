@@ -1,0 +1,147 @@
+﻿@page "/despesa/imprimir/{id_despesa:int}"
+@inject FornecedorController _controllerFornecedores
+@inject DespesaController _controllerDespesas
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment env
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<h2><b>Cadastro de Despesas</b></h2>
+<h4>Cadastre uma nova despesa e mantenha seus dados atualizados</h4>
+
+<EditForm Model="despesa" method="post" OnValidSubmit="Atualizar" FormName="form_servico">
+	<DataAnnotationsValidator />
+	<hr />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-2">
+			<label>Data: </label>
+			<InputDate disabled id="dataDespesa" @bind-Value="despesa.Datalacamento" class="form-control" />
+		</div>
+		<div class="form-group col-md-1">
+		</div>
+		<div class="form-group col-md-2">
+			<label>Status: </label>
+			<InputText disabled type="text" placeholder="" class="form-control" @bind-Value="despesa.Status_des" />
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-5">
+			<label>Fornecedor: *</label>
+			<InputSelect disabled @bind-Value="despesa.FornecedorDespesa.Id_fornecedor" class="form-select">
+				<option value="">--Selecionar--</option>
+				@foreach (Fornecedor fornec in ListaFornecesores)
+				{
+					<option value="@fornec.Id_fornecedor"> @fornec.Nome_fantasia </option>
+				}
+			</InputSelect>
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-5">
+			<label>Descrição : *</label>
+			<InputText disabled type="text" placeholder="" class="form-control" @bind-Value="despesa.Descricao" />
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-6">
+		<div class="form-group col-md-2">
+			<label>Valor : *</label>
+			<InputText disabled onkeyup="moedaFormat(this);" id="valorEstimado" placeholder=" Ex. R$ 100,00"
+					   @bind-Value="ValorDespesa" class="form-control" />
+		</div>
+		<div class="form-group col-md-1">
+		</div>
+		<div class="form-group col-md-2">
+			<label>Vencimento : *</label>
+			<InputDate disabled id="dataDespesa" @bind-Value="despesa.Vencimento" class="form-control" />
+		</div>
+	</div>
+	<br />
+	<div class="form-group">
+		<a href="/despesas">
+			<button type="button" class="btn btn-danger bi bi-searche">
+				Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+			</button>
+		</a>
+
+		<!--<input type="submit" value="Cadastrar"  class="btn btn-success create bi bi-search"/>-->
+	</div>
+</EditForm>
+
+
+@code {
+	[Parameter]
+	public int id_despesa { get; set; }
+	string mensagem = "";
+	public Despesa despesa = new Despesa();
+	DateOnly apagar;
+	string ValorDespesa;
+	List<Fornecedor> ListaFornecesores { get; set; }
+
+	protected override async Task OnInitializedAsync()
+	{
+		ListaFornecesores = _controllerFornecedores.ListarFornecedores();
+		despesa = _controllerDespesas.BuscarId(id_despesa);
+		ValorDespesa = despesa.Valor.ToString("F2");
+	}
+
+	public void Atualizar()
+	{
+		mensagem = "";
+		try
+		{
+			despesa.FornecedorDespesa = ListaFornecesores.FirstOrDefault(x => x.Id_fornecedor == despesa.FornecedorDespesa.Id_fornecedor);
+			mensagem = "Despesa atualizada com sucesso!";
+			despesa.Valor = double.Parse(ValorDespesa);
+			_controllerDespesas.Atualizar(despesa);
+			JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+		}
+		catch (Exception ex)
+		{
+			//mensagem = endereco.Logradouro;
+			mensagem = "Ocorreu um erro inesperado ao tentar atualizar a despesa, por favor tente realizar o procedimento novamente! "+ex.Message;
+			JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+		}
+	}
+
+
+	private void fecharModal(string elementoID)
+	{
+		despesa = new Despesa();
+		ValorDespesa = "0.00";
+		JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+	}
+
+	private IJSObjectReference? jsModule;
+	async ValueTask IAsyncDisposable.DisposeAsync()
+	{
+		if (jsModule is not null)
+		{
+			await jsModule.DisposeAsync();
+		}
+	}
+}
+
+
+<!--Código responsável por exibir o modal de confirmação de cadastro ou de erro.-->
+
+<div class="modal fade show" id="myModal" style="display:none; background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title">Cadastro!</h5>
+			</div>
+			<div class="modal-body">
+				<p>@mensagem</p>
+			</div>
+			<div class="modal-footer">
+				<a href="despesas"><button type="button" class="btn btn-primary">Voltar a lista</button></a>
+				<button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("myModal")'>Novo</button>
+			</div>
+		</div>
+	</div>
+</div>

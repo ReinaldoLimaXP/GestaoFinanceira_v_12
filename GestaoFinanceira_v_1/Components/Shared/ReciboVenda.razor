@@ -1,0 +1,222 @@
+﻿@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@rendermode InteractiveServer
+@inject NavigationManager NavigationManager
+@inject VendaController _vendaController
+
+<div class="modal fade show" id="modalRecibo" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header" style="background-color: #898686;">
+				<h5 class="modal-title  text-white">Recibo de Venda</h5>
+			</div>
+			<div class="modal-body">
+				<EditForm Model="vendaEfetuada" OnValidSubmit="@Imprimir">
+					
+					<strong>Dados da Venda</strong>
+					<hr class="hrsemEspaco" />
+					<div class="input-group col-md-12">
+						<div class="form-group col-md-2">
+							<label>ID:</label>
+							<!--<div class="col-sm-2">-->
+							<InputNumber disabled id="id_pagamento" class="form-control  form-control" placeholder="" @bind-Value="vendaEfetuada.Id_venda" />
+						</div>
+						&nbsp &nbsp
+						<div class="form-group col-md-2">
+							<label>Data:</label>
+							<!--<div class="col-sm-2">-->
+							<InputDate disabled id="datavenda" class="form-control  form-control" placeholder="" @bind-Value="vendaEfetuada.DataVenda" />
+						</div>
+						&nbsp &nbsp
+						<div class="form-group col-md-2">
+							<label>Hora:</label>
+							<!--<div class="col-sm-2">-->
+							<InputText disabled id="horavenda" class="form-control  form-control" placeholder="" @bind-Value="vendaEfetuada.Hora" />
+						</div>
+						&nbsp &nbsp
+						<div class="form-group col-md-5">
+							<label>Cliente:</label>
+							<!--<div class="col-sm-2">-->
+							<InputText disabled id="clientevenda" class="form-control  form-control" placeholder="" @bind-Value="clienteVenda" />
+						</div>
+					</div>
+					<br />
+					<strong>Forma de Recebimento</strong>
+					<hr class="hrsemEspaco"/>
+					<div class="input-group col-md-12">
+						<div class="form-group col-md-2">
+							<label>Forma:</label>
+							<!--<div class="col-sm-2">-->
+							<InputText disabled id="id_pagamento" class="form-control  form-control" placeholder="" @bind-Value="vendaEfetuada.FormaPagamento" />
+						</div>
+						&nbsp &nbsp &nbsp
+						<div class="form-group col-md-2">
+							<label>Tipo:</label>
+							<!--<div class="col-sm-2">-->
+							<InputText disabled id="id_pagamento" class="form-control  form-control" placeholder="" @bind-Value="vendaEfetuada.TipoPagamento" />
+						</div>
+						&nbsp &nbsp &nbsp
+						<div class="form-group col-md-2">
+							<label>Valor Total:</label>
+							<!--<div class="col-sm-2">-->
+							<InputText disabled id="id_pagamento" class="form-control  form-control" placeholder="" @bind-Value="ValorTotal" />
+						</div>
+						&nbsp &nbsp &nbsp
+						<div class="form-group col-md-2">
+							<label>Desconto:</label>
+							<!--<div class="col-sm-2">-->
+							<InputText disabled id="id_pagamento" class="form-control  form-control" placeholder="" @bind-Value="Desconto" />
+						</div>
+						&nbsp &nbsp &nbsp
+						<div class="form-group col-md-2">
+							<label>Valor Final:</label>
+							<!--<div class="col-sm-2">-->
+							<InputText disabled id="id_pagamento" class="form-control  form-control" placeholder="" @bind-Value="ValorFinal" />
+						</div>
+						
+					</div>
+					<br />
+					<strong>Parcelas</strong>
+					<hr class="hrsemEspaco" />
+					<div class="input-group col-md-12">
+						<table class="table table-sm table-responsive-sm">
+							<thead>
+								<tr>
+									<th>ID</th>
+									<th>Parcela</th>
+									<th>Vencimento</th>
+									<th>Valor</th>
+									<th>Status</th>
+								</tr>
+							</thead>
+							<tbody>
+								@foreach (Recebimento receb in vendaEfetuada.RecebimentoLista)
+								{
+									<tr>
+										<td>@receb.Id_recebimento</td>
+										<td>@receb.Nparcela/@vendaEfetuada.TotalParcelas</td>
+										<td>@receb.DataVencimento</td>
+										<td>@receb.ValorParcela.ToString("C2")</td>
+										@if (@receb.StatusRecebimento == "Aberto")
+										{
+											<td class="text-danger"><strong>@receb.StatusRecebimento</strong></td>
+										}
+										else
+										{
+											<td class="text-success"><strong>@receb.StatusRecebimento</strong></td>
+										}
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+					<br />
+
+					<div class="form-group">
+						<button  type="button" class="btn btn-danger" @onclick='() => EscolharModal("fechar")'>
+							Fechar &nbsp; <i class="bi bi-arrow-left-circle"></i>
+						</button>
+						<button style="float:right" type="button" class="btn btn-secondary" @onclick='() => Imprimir()'>
+							Imprimir &nbsp;  <i class="bi bi-printer-fill"></i>
+						</button>
+						<!--
+						<button style="float:right" type="button" class="btn btn-primary">Imprimir</button>
+						-->
+					</div>
+				</EditForm>
+			</div>
+			
+		</div>
+	</div>
+</div>
+
+@code {
+	[Parameter]
+	public EventCallback<bool> UserChouse { get; set; }
+	Venda vendaEfetuada = new Venda();
+	string clienteVenda, ValorTotal, ValorFinal, Desconto;
+
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			try
+			{
+				jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+					"import", "/script/modal.js");
+			}
+			catch (Exception ex)
+			{
+				// mensagem = "Erro ao carregar as máscaras " + ex.Message;
+				//await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+			}
+
+		}
+	}
+
+	public async Task ShowModalModal(int? id_venda)
+	{
+		try{
+			Console.WriteLine("Id da venda "+id_venda);
+			if (_vendaController == null)
+			{
+				throw new InvalidOperationException("O controlador de venda não foi inicializado.");
+			}
+			vendaEfetuada = await _vendaController.BuscarId(id_venda);
+			await JSRuntime.InvokeAsync<string>("modal.showModal", "modalRecibo");
+			if (vendaEfetuada.Cliente is ClientePF)
+			{
+				ClientePF cc = vendaEfetuada.Cliente as ClientePF;
+				clienteVenda = cc.Nome_cli;
+			}
+			else if (vendaEfetuada.Cliente is ClientePJ)
+			{
+				ClientePJ cc = vendaEfetuada.Cliente as ClientePJ;
+				clienteVenda = cc.RazaoSocial_PJ;
+			}
+			ValorTotal = vendaEfetuada.ValorTotal.ToString("C2");
+			ValorFinal = vendaEfetuada.ValorFinal.ToString("C2");
+			Desconto = vendaEfetuada.Desconto.ToString();
+		}catch(Exception ex)
+		{
+			Console.WriteLine(ex.Message);
+		}
+	}
+
+	public void VendaRealizada(Venda v)
+	{
+		vendaEfetuada = v.Clone() as Venda;
+		JSRuntime.InvokeAsync<string>("modal.showModal", "modalRecibo");
+		if (vendaEfetuada.Cliente is ClientePF)
+		{
+			ClientePF cc = vendaEfetuada.Cliente as ClientePF;
+			clienteVenda = cc.Nome_cli;
+		}
+		else if (vendaEfetuada.Cliente is ClientePJ)
+		{
+			ClientePJ cc = vendaEfetuada.Cliente as ClientePJ;
+			clienteVenda = cc.RazaoSocial_PJ;
+		}
+	}
+
+	public async void EscolharModal(string valor)
+	{
+		await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalRecibo");
+		//NavigationManager.NavigateTo("vendas/cadastro");
+	}
+
+	public void Imprimir()
+	{
+		NavigationManager.NavigateTo("vendas/recibo/" + vendaEfetuada.Id_venda);
+	}
+	private IJSObjectReference? jsModule;
+	async ValueTask IAsyncDisposable.DisposeAsync()
+	{
+		if (jsModule is not null)
+		{
+			await jsModule.DisposeAsync();
+		}
+	}
+}

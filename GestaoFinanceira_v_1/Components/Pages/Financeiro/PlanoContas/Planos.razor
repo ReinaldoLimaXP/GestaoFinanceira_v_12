@@ -1,0 +1,193 @@
+﻿@page "/planos"
+@inject NavigationManager NavigationManager
+@inject PlanoContasController _controllerPlanos
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Plano de Contas</PageTitle>
+
+<h1><b>Consulta de Plano de Contas</b></h1>
+<hr />
+
+<p>Consulte um plano de conta cadastrada no sistema e utilize as opções disponíveis</p>
+
+<div class="input-group col-md-10">
+    <div class="form-group col-md-6">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown="@Enter" @onkeyup="@Enter"
+                   @onkeypress="@Enter" />
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <option value="codigo">Código</option>
+            <option value="descricao">Descricao</option>
+            <option value="natureza">Natureza</option>
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-2">
+        <br />
+        <a href="/planos/cadastro">
+            <button style="z-index:0;" class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                Novo <i class="bi bi-plus-circle"></i>
+            </button>
+        </a>
+    </div>
+</div>
+
+<br />
+
+@if ((ListaPlanos == null || ListaPlanos.Count <= 0) && busca == "")
+{
+    <p><em>Carregando as planos de contas...</em></p>
+}
+else if ((ListaPlanos == null || ListaPlanos.Count <= 0) && busca != "")
+{
+    <p><em>Planos não encontrados com a busca!</em></p>
+}
+else
+{
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th>Natureza</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (PlanoDeContas plano in ListaPlanos)
+            {
+                <tr>
+                    <td>@plano.Codigo </td>
+                    <td>@plano.Descricao</td>
+                    <td>@plano.NaturezaConta </td>
+                    <td>
+                    <td>
+                        <a href="/planos/imprimir/@plano.Id_planoConta">
+                            <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                        </a>
+                    </td>
+                    <td>
+                        <a href="/planos/editar/@plano.Id_planoConta">
+                            <button class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                        </a>
+                    </td>
+                    <td>
+                        <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(plano.Id_planoConta)'><i class="bi bi-trash3-fill"></i></button>
+                    </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string filtro = "descricao", busca = "";
+    List<PlanoDeContas> ListaPlanos { get; set; }
+    List<PlanoDeContas> ListaPlanos2 { get; set; }
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ListaPlanos2 = new List<PlanoDeContas>();
+            ListaPlanos =  _controllerPlanos.ListarPlanos();
+            ListaPlanos2.AddRange(ListaPlanos);
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+    private async Task Filtrar()
+    {
+        ListaPlanos.Clear();
+        ListaPlanos.AddRange(ListaPlanos2);
+        try
+        {
+            if (filtro == "natureza")
+            {
+                List<PlanoDeContas> listaVeiculoT = ListaPlanos.Where(x => x.NaturezaConta.ToLower().Contains(busca.ToLower())).ToList();
+                ListaPlanos.Clear();
+                ListaPlanos.AddRange(listaVeiculoT);
+            }
+            else if (filtro == "codigo")
+            {
+                List<PlanoDeContas> listaVeiculoT = ListaPlanos.Where(x => x.Id_planoConta.ToString().Contains(busca.ToLower())).ToList();
+            }
+            else
+            {
+                List<PlanoDeContas> listaServicoF = ListaPlanos.Where(x => x.Descricao.ToLower().Contains(busca.ToLower())).ToList();
+                ListaPlanos.Clear();
+                ListaPlanos.AddRange(listaServicoF);
+            }
+        }
+        catch (Exception)
+        {
+
+        }
+    }
+
+    public void Enter(KeyboardEventArgs e)
+    {
+        this.Filtrar();
+    }
+
+
+    private void CheckChanged()
+    {
+        this.Filtrar();
+    }
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    PlanoDeContas planoExcluir = new PlanoDeContas();
+    protected void ExibirmodalExcluir(int id_despesa)
+    {
+        planoExcluir = ListaPlanos.SingleOrDefault(x => x.Id_planoConta == id_despesa);
+        if (planoExcluir != null)
+        {
+            confirmar.ShowModalConfirmacao($"Você tem certeza que deseja excluir o plano {planoExcluir.Descricao} ?");
+        }
+    }
+    protected void ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                _controllerPlanos.Deletar(planoExcluir.Id_planoConta);
+                ListaPlanos.Remove(planoExcluir);
+            }
+        }
+        catch (Exception)
+        {
+            MensagemModal("Erro", "Ocorreu um erro inesperado ao excluir o veículo!");
+
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+     */
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

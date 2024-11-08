@@ -1,0 +1,164 @@
+﻿@page "/relatorios/relatorioVenda"
+@using System.ComponentModel.DataAnnotations;
+@using System.ComponentModel.DataAnnotations.Schema;
+@using GestaoFinanceira_v_1.Components.Shared
+@using GestaoFinanceira_v_1.Utilitarios;
+@inject VendaController _vendaController;
+@inject NavigationManager nav
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<script>
+    function NovaGuia(url) {
+        window.open(url, '_blank');
+    }
+</script>
+
+
+<div class="">
+    <div class="col-md-8">
+        <h2><b>Relatórios de Vendas</b></h2>
+        <h4>Preencha os dados para a emissão do relatório</h4>
+        <hr />
+        <EditForm Model="@relVenda" OnValidSubmit="Emitir" FormName="Cad_venda">
+            <DataAnnotationsValidator />
+            <strong>Período</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-6">
+                    <label>Data Início *: </label>
+                    <InputDate id="dataVenda" @bind-Value="relVenda.DataInicio" class="form-control" />
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Data Final *: </label>
+                    <InputDate id="horaVenda" @bind-Value="relVenda.DataFim" class="form-control" />
+                </div>
+            </div>
+            <br />
+            <strong>Formato</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <label>Tipo *: </label>
+                    <InputSelect @bind-Value="relVenda.Formato" id="formato" class="form-select">
+                        <option value="">Selecionar</option>
+                        <option value="1">Resumido</option>
+                        <option value="2">Completo</option>
+                    </InputSelect>
+                </div>
+            </div>
+            <br />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <a href="/relatorios">
+                        <button type="button" class="btn btn-danger">
+                            Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                        </button>
+                    </a>
+                    <button type="submit" style="float:right" class="btn btn-secondary">
+                        Emitir &nbsp <i class="bi bi-file-earmark-text"></i>
+                    </button>
+                </div>
+            </div>
+
+        </EditForm>
+    </div>
+</div>
+@code {
+    List<ItemVenda> itensDasVendas = new List<ItemVenda>();
+    List<Venda> vendas = new List<Venda>();
+
+    public string ValorTotal, ValorFinal, Desconto, veiculoVinculado, PlacaVeiculo, modelo_vei, clienteVenda, cpf_cnpj, encargo;
+
+    EmitirRVenda relVenda = new EmitirRVenda();
+    public async Task Emitir()
+    {
+        try
+        {
+            await FiltrarVendaCompleta(relVenda.DataInicio, relVenda.DataFim);
+            ImpressaoVendas imprimir = new ImpressaoVendas();
+            if (relVenda.Formato == 1)
+                await imprimir.GerarRelatorioVendaResumida(vendas, nav, JSRuntime, relVenda.DataInicio, relVenda.DataFim);
+            if (relVenda.Formato == 2)
+                await imprimir.GerarRelatorioVendaCompleta(vendas, itensDasVendas, nav, JSRuntime, relVenda.DataInicio, relVenda.DataFim);
+
+
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", "Erro ao gerar o relatório " + ex.Message);
+        }
+    }
+
+    public async Task FiltrarVendaCompleta(DateOnly dataInicio, DateOnly dataFinal)
+    {
+        try
+        {
+            vendas.Clear(); itensDasVendas.Clear();
+            vendas = await _vendaController.BuscarVendasPorData(dataInicio, dataFinal);
+
+            if (vendas is not null)
+            {
+                foreach (var venda in vendas)
+                {
+                    // Adiciona todos os itens de venda dessa venda à lista de itens
+                    itensDasVendas.AddRange(venda.ItensVenda);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new Exception(ex.Message);
+        }
+    }
+
+
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await jsModule.InvokeAsync<IJSObjectReference>(
+                  "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                //mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    public class EmitirRVenda
+    {
+        [Required]
+        public DateOnly DataInicio { get; set; }
+        [Required]
+        public DateOnly DataFim { get; set; }
+        [Required]
+        public int? Formato { get; set; }
+
+        public EmitirRVenda()
+        {
+            DataInicio = DateOnly.FromDateTime(DateTime.Now);
+            DataFim = DateOnly.FromDateTime(DateTime.Now);
+        }
+    }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

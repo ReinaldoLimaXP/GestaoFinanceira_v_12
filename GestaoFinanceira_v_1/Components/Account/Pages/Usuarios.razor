@@ -1,0 +1,192 @@
+﻿@page "/Account/Usuarios"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using GestaoFinanceira_v_1.Data
+@using System.Security.Claims
+@inject ApplicationDbContext _contexto
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject RoleManager<IdentityRole> RolerManager
+@inject UserManager<ApplicationUser> UserManager
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Registro</PageTitle>
+
+<h1>Cadastro de Usuário</h1>
+
+<div class="row">
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control"/>
+    </div>
+
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="zerar">--Selecionar--</option>
+            <option value="nome">Nome</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+   
+    <div class="form-group col-md-1">
+        <br />
+        <button class="btn btn-secondary">
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-2">
+        <br />
+        <a href="/Account/Register">
+            <button class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                Novo <i class="bi bi-plus-circle"></i>
+            </button>
+        </a>
+    </div>
+</div>
+<br/>
+
+<table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Perfil</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var user in ColUsers)
+        {
+            <tr>
+                <td>@user.Id.Substring(0, 5) ...</td>
+                <td>@user.Nome_Usuario</td>
+                <td>@user.Email</td>
+                <td>@RolerManager.Roles.FirstOrDefault(x => x.Id == _contexto.UserRoles.FirstOrDefault(x => x.UserId == @user.Id).RoleId)</td>
+                <td>
+                        <a href="">
+                        <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                        </a>
+                        <a href="">
+                            <button class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                        </a>
+                    &nbsp
+                    @if (user.Id.Equals(IdLogado))
+                    {
+                        <button disabled class="btn btn-danger" @onclick='() => Exibirmodal(user)'><i class="bi bi-trash3-fill"></i></button>
+                    }else{
+                        <button class="btn btn-danger" @onclick='() => Exibirmodal(user)'><i class="bi bi-trash3-fill"></i></button>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+</table>
+
+
+@code {
+
+    string mensagemErro = "";
+    string filtro = "zerar", busca = "";
+    List<ApplicationUser> ColUsers = new List<ApplicationUser>();
+
+    public List<string>? RolesID { get; set; }
+    string? IdLogado,IDexcluir;
+    protected override void OnInitialized()
+    {
+        IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+        this.PreencherDados();
+    }
+
+    public  void PreencherDados()
+    {
+        RolesID = new List<string>();
+        ColUsers = new List<ApplicationUser>();
+        // Obtem os usuários a partir de _UserManager
+        var user = UserManager.Users.Select(x => new ApplicationUser
+            {
+                Id = x.Id,
+                Nome_Usuario = x.Nome_Usuario,
+                UserName = x.UserName,
+                Email = x.Email,
+                PasswordHash = "*****"
+            });
+        foreach (var item in user)
+        {            
+            ColUsers.Add(item);
+        }
+    }
+
+    ApplicationUser UserExcluir = new ApplicationUser();
+    
+
+    //[CascadingParameter]
+    //private HttpContext HttpContext { get; set; } = default!;
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    public void Exibirmodal(ApplicationUser user)
+    {
+        try
+        {
+            UserExcluir = user;
+            confirmar.ShowModalConfirmacao("Você tem certeza que deseja excluir o usuário " + UserExcluir.Nome_Usuario);
+        }
+        catch (Exception ex)
+        {
+            MensagemModal("Erro", "Ocorreu um erro inesperado ao exibir o modal !"+ex.Message);
+        }
+    }
+
+    protected async Task ConfirmarExclusaoUsuario(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                var user = await UserManager.FindByIdAsync(UserExcluir.Id);
+                var result = await UserManager.DeleteAsync(user);
+                if (result.Succeeded)
+                {
+                    ColUsers.Remove(UserExcluir);
+                    // JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "exampleModal");
+                    //RedirectManager.RedirectTo("/Account/Usuarios");
+                }
+                else
+                {
+                    MensagemModal("Erro", "Ocorreu um erro inesperado ao excluir o usuário!");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagemModal("Erro", "Ocorreu um erro inesperado "+ex.Message);
+
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+     */
+    protected void ConfirmarMensagem(bool confirm){}
+
+    
+
+
+}
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusaoUsuario" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

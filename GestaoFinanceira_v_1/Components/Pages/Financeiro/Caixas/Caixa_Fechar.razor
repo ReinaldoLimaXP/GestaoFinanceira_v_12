@@ -1,0 +1,556 @@
+﻿@page "/caixas/fechar/{id_caixa:long}"
+@using GestaoFinanceira_v_1.Data
+@using Microsoft.AspNetCore.Identity
+@using System.Security.Claims
+@inject CaixaController _caixaController
+@inject RecebimentoController _recebimentoController
+@inject DespesaController _controllerDespesas
+@inject FuncionarioController _funcionariosController
+@inject EncargoController _encargoController
+@inject LogCaixaController _logController
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Fechar Caixa</PageTitle>
+<style>
+    .borderline {
+        border-left: 2px solid gray; /* Estilo da linha vertical */
+    }
+</style>
+
+<h1><b>Fechamento de Caixa</b></h1>
+<hr />
+
+<p>Visualize as informações do caixa em aberto e escolha uma das opções.</p>
+
+<div class="row">
+    <div class="form-group col-md-3">
+        <label>Número:</label>
+        <InputNumber disabled @bind-Value="cx.Id_caixa" class="form-control" />
+    </div>
+
+    <div class="form-group col-md-3">
+        <label>Data Abertura:</label>
+        <InputDate disabled @bind-Value="cx.Data_abertura" class="form-control" />
+    </div>
+
+    <div class="form-group col-md-3">
+        <label>Data Fechamento:</label>
+        <InputDate disabled @bind-Value="cx.Data_fechamento" class="form-control" />
+    </div>
+
+    <div class="form-group col-md-3">
+        <label>Status:</label>
+        <InputText disabled @bind-Value="cx.Status" class="form-control" />
+    </div>
+</div>
+<br />
+<div class="row">
+    <div class="form-group col-md-3">
+        <label>Saldo Inicial:</label>
+        <InputText disabled @bind-Value="saldo_inicial" class="form-control" />
+    </div>
+
+    <div class="form-group col-md-3">
+        <label>Total de Entradas:</label>
+        <InputText disabled @bind-Value="total_entradas" class="form-control" />
+    </div>
+ 
+    <div class="form-group col-md-3">
+        <label>Total de Saídas:</label>
+        <InputText disabled @bind-Value="total_saidas" class="form-control" />
+    </div>
+
+    <div class="form-group col-md-3">
+        <label>Saldo Final:</label>
+        <InputText disabled @bind-Value="saldo_final" class="form-control" />
+    </div>
+</div>
+<br />
+
+<div class="row">
+    <div class="form-group col-md-5">
+        <label>Total de Entradas</label>
+        <InputText disabled @bind-Value="total_entradas" class="form-control text-success" />
+    </div>
+
+    <div class="form-group col-md-5">
+        <label>Total de Saídas</label>
+        <InputText disabled @bind-Value="total_saidas" class="form-control text-danger" />
+    </div>
+
+    <div class="form-group col-md-2">
+        <label>Total a Prazo</label>
+        <InputText disabled @bind-Value="total_prazo" class="form-control text-secondary" />
+    </div>
+</div>
+<br />
+
+<div class="row">
+    <div class="form-group col-md-5">
+        <table class="table table-sm table-responsive-sm">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Data e Hora</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (recebimentosCaixaList.Count > 0)
+                {
+                    <tr>
+                        <td colspan="4" class="bg-light text-center"><strong>Recebimentos</strong></td>
+                    </tr>
+                }
+                @foreach(Recebimento r in recebimentosCaixaList)
+                {
+                    <tr>
+                        <td>@r.Id_recebimento</td>
+                        <td>@r.DataPagamento : @r.HoraPagamento</td>
+                        <td>@r.TipoPagamento</td>
+                        <td>@r.ValorParcela.ToString("C2")</td>
+                    </tr>
+                }
+                @if (SangriaInicial.Count > 0)
+                {
+                    <tr>
+                        <td colspan="4" class="bg-light text-center"><strong>Sangrias - Saldo Inicial</strong></td>
+                    </tr>
+                }
+                @foreach (Sangria s in SangriaInicial)
+                {
+                    <tr>
+                        <td>@s.Id_sangria</td>
+                        <td>@s.DataSangria:@s.HoraSangria</td>
+                        <td>Sangria</td>
+                        <td>@s.ValorSangria.ToString("C2")</td>
+                    </tr>
+                }
+                @if (SangriaRecebidas.Count > 0)
+                {
+                    <tr>
+                        <td colspan="4" class="bg-light text-center"><strong>Sangrias Recebidas</strong></td>
+                    </tr>
+                }
+                @foreach (Sangria s in SangriaRecebidas)
+                {
+                    <tr>
+                        <td>@s.Id_sangria</td>
+                        <td>@s.DataSangria:@s.HoraSangria</td>
+                        <td>Sangria</td>
+                        <td>@s.ValorSangria.ToString("C2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="form-group col-md-5">
+        <table class="table table-sm table-responsive-sm">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Data e Hora</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (despesasCaixaList.Count > 0)
+                {
+                    <tr>
+                        <td colspan="4" class="bg-light text-center"><strong>Pagamentos</strong></td>
+                    </tr>
+                }
+                @foreach (Despesa d in despesasCaixaList)
+                {
+                    <tr>
+                        <td>@d.Id_despesa</td>
+                        <td>@d.DataPagamento : @d.HoraPagamento</td>
+                        <td>@d.TipoPagamento</td>
+                        <td>@d.Valor.ToString("C2")</td>
+                    </tr>
+                }
+                @if (encagosList.Count > 0){
+                    <tr>
+                        <td colspan="4" class="bg-light text-center"><strong>Encargos</strong></td>
+                    </tr>
+                }
+                @foreach (Encargo e in encagosList)
+                {
+                    <tr>
+                        <td>@e.Id_encargo</td>
+                        <td>@e.RecebimentoEncargo?.DataPagamento : @e.RecebimentoEncargo?.HoraPagamento</td>
+                        <td>Encargo</td>
+                        <td>@e.Valor.ToString("C2")</td>
+                    </tr>
+                }
+                @if (SangriaEfetuadas.Count > 0)
+                {
+                    <tr>
+                        <td colspan="4" class="bg-light text-center"><strong>Sangrias Efetuadas</strong></td>
+                    </tr>
+                }
+                @foreach (Sangria s in SangriaEfetuadas)
+                {
+                    <tr>
+                        <td>@s.Id_sangria</td>
+                        <td>@s.DataSangria:@s.HoraSangria</td>
+                        <td>Sangria</td>
+                        <td>@s.ValorSangria.ToString("C2")</td>
+                    </tr>
+                }
+
+            </tbody>
+        </table>
+    </div>
+ 
+    <div class="form-group col-md-2 borderline">    
+            @if(cx.Tipo?.ToLower() == "operacional")
+            {
+                <div class="form-group">
+                    <label>Promissória</label>
+                    <InputText disabled @bind-Value="prazo_promissoria" class="form-control" />
+            </div>
+            }
+            else
+            {
+                <div class="form-group">
+                    <label>Cartão de Crédito</label>
+                    <InputText disabled @bind-Value="prazo_credito" class="form-control" />
+                </div>
+                <br />
+                <div class="form-group">
+                    <label>Boleto</label>
+                    <InputText disabled @bind-Value="prazo_boleto" class="form-control" />
+                </div>
+            }
+    </div>
+</div>
+
+<br />
+<div class="form-group">
+    <a href="/caixas">
+    <button type="button" class="btn btn-danger">
+        Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+    </button>
+    </a>
+    <button style="float:right" @onclick='() =>AbrirModal()' class="btn-transferir btn">Fechar &nbsp <i class="bi bi-x-circle-fill"> </i></button>
+</div>
+<br />
+@code {
+    [Parameter]
+    public long id_caixa { get; set; }
+    Caixa cx = new Caixa { BancoCaixa = new Banco() };
+    LogCaixa lcx = new LogCaixa();
+
+    string saldo_final, total_saidas, total_entradas, saldo_inicial;
+    string entrada_dinheiro, entrada_debido,entrada_credito,entrada_pix, entrada_ted,entrada_boleto;
+    string saida_dinheiro, saida_pix, saida_encargos, saida_sangria;
+    string? prazo_promissoria, prazo_credito, prazo_boleto, total_prazo;
+    List<Recebimento> recebimentosCaixaList = new List<Recebimento>();
+    List<Despesa> despesasCaixaList = new List<Despesa>();
+    List<Recebimento> prazo = new List<Recebimento>();
+    List<Encargo> encagosList = new List<Encargo>();
+    List<Sangria> SangriaEfetuadas = new List<Sangria>();
+    List<Sangria> SangriaRecebidas = new List<Sangria>();
+    List<Sangria> SangriaInicial = new List<Sangria>();
+    ApplicationUser usuario = new ApplicationUser();
+    Funcionario funcionarioFechar = new Funcionario();
+    protected override async Task OnInitializedAsync()
+    {
+        try{
+            cx = await _caixaController.BuscarId(id_caixa);
+            saldo_final = cx.Saldo_final.ToString("C2");
+            total_saidas = cx.Total_saidas.ToString("C2");
+            total_entradas = cx.Total_entradas.ToString("C2");
+            saldo_inicial = cx.Saldo_inicial.ToString("C2");
+            recebimentosCaixaList = await _recebimentoController.ListarTodosCaixaAwait(id_caixa);
+
+
+            despesasCaixaList = _controllerDespesas.ListarDespesas().Where(c => c.Fk_id_caixa == id_caixa).Where(c=> c.Status_des.ToLower() == "fechado").ToList();
+
+            entrada_dinheiro = recebimentosCaixaList.Where(c => c.StatusRecebimento.ToLower().ToString().ToLower() == "fechado" && c.TipoPagamento.ToLower() == "dinheiro").Sum(x => x.ValorParcela).ToString("C2");
+            entrada_debido = recebimentosCaixaList.Where(c => c.StatusRecebimento.ToLower().ToString().ToLower() == "fechado" && c.TipoPagamento.ToLower() == "cartão débito").Sum(x => x.ValorParcela).ToString("C2");
+            entrada_credito = recebimentosCaixaList.Where(c =>  c.TipoPagamento.ToLower() == "cartão crédito").Sum(x => x.ValorParcela).ToString("C2");
+            entrada_pix = recebimentosCaixaList.Where(c => c.StatusRecebimento.ToLower().ToString().ToLower() == "fechado" && c.TipoPagamento.ToLower() == "pix").Sum(x => x.ValorParcela).ToString("C2");
+            entrada_ted = recebimentosCaixaList.Where(c => c.StatusRecebimento.ToLower().ToString().ToLower() == "fechado" && c.TipoPagamento.ToLower() == "transferência ted/doc").Sum(x => x.ValorParcela).ToString("C2");
+            entrada_boleto = recebimentosCaixaList.Where(c => c.TipoPagamento.ToLower() == "boleto").Sum(x => x.ValorParcela).ToString("C2");
+
+            saida_pix = despesasCaixaList.Where(c => c.Status_des.ToLower() == "fechado" && c.TipoPagamento.ToLower() == "pix").Sum(c=>c.Valor).ToString("C2");
+            saida_dinheiro = despesasCaixaList.Where(c => c.Status_des.ToLower() == "fechado" && c.TipoPagamento.ToLower() == "dinheiro").Sum(c => c.Valor).ToString("C2");
+
+            //Somar total de encargos pago nas vendas do caixa
+            //Somar total de sangrias feitas no caica
+
+
+            /*Ver a questão da parcela paga e consta como prazo*/
+            prazo_promissoria = recebimentosCaixaList.Where(c => c.Venda?.Fk_id_caixa == id_caixa).Where(x => x.TipoPagamento.ToLower() == "promissória" && x.StatusRecebimento.ToLower() == "aberto").Sum(x => x.ValorParcela).ToString("C2");
+            prazo_boleto = recebimentosCaixaList.Where(c => c.Venda?.Fk_id_caixa == id_caixa).Where(x => x.TipoPagamento.ToLower() == "boleto" && x.StatusRecebimento.ToLower() == "aberto").Sum(x => x.ValorParcela).ToString("C2");
+            prazo_credito = recebimentosCaixaList.Where(c => c.Venda?.Fk_id_caixa == id_caixa).Where(x => x.TipoPagamento.ToLower() == "cartão crédito" && x.StatusRecebimento.ToLower() == "aberto").Sum(x => x.ValorParcela).ToString("C2");
+            //Total a prazo não está correto
+
+            string a = prazo_promissoria.Replace("R","").Replace("$","");
+            string b = prazo_boleto.Replace("R", "").Replace("$", "");
+            string c = prazo_credito.Replace("R", "").Replace("$", "");
+            total_prazo = (double.Parse(a) + double.Parse(b) + double.Parse(c)).ToString("C2");
+            cx.Data_fechamento = DateOnly.FromDateTime(DateTime.Now);
+
+
+            string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            usuario = UserManager.FindByIdAsync(IdLogado).Result;
+            funcionarioFechar = _funcionariosController.BuscarID(usuario.Id_funcionario);
+
+
+            SangriaEfetuadas = await _caixaController.ListarSangriasEfetuadas(id_caixa);
+            saida_sangria = SangriaEfetuadas.Sum(x => x.ValorSangria).ToString("C2");
+
+            SangriaRecebidas = await _caixaController.SangriaRecebida(id_caixa);
+            SangriaInicial = SangriaRecebidas.Where(x => x.Tiposangria.ToLower() == "saldoinicial").ToList();
+            SangriaRecebidas = SangriaRecebidas.Where(x => x.Tiposangria.ToLower() != "saldoinicial").ToList();
+
+            encagosList = await _encargoController.EncagosCaixa(id_caixa);
+            saida_encargos = encagosList.Sum(x => x.Valor).ToString("C2");
+
+
+            /*Colocar na lista apenas os recebidos e pagos*/
+            recebimentosCaixaList = recebimentosCaixaList.Where(x => x.StatusRecebimento.ToLower() == "fechado").ToList();
+
+        }catch(Exception ex)
+        {
+            await statusMensagem.ShowModalAwait("Erro!", ex.Message);
+        }
+    }
+
+    protected void AbrirModal()
+    {
+        JSRuntime.InvokeAsync<string>("modal.showModal", "modalCaixaFechar");
+    }
+
+    public void FecharModal()
+    {
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalCaixaFechar");
+    }
+
+    protected async Task CaixaFechar()
+    {
+
+        try{
+            /*Atualizar caixa que está sendo fechado*/   
+            cx.Status = "Fechado";
+            cx.Data_fechamento = DateOnly.FromDateTime(DateTime.Now);
+            lcx.Fk_id_funcionario = funcionarioFechar.Id_funcionario;
+            lcx.Fk_id_caixa = cx.Id_caixa;
+            lcx.SaldoAtual = cx.Saldo_final;
+            lcx.Operacao = "Fechamento";
+
+
+            await _caixaController.AtualizarStatus(cx);
+            await _logController.Salvar(lcx);
+            FecharModal();
+            await JSRuntime.InvokeAsync<string>("modal.showModal", "modalConfirmarFechar");
+        }catch(Exception ex)
+        {
+            FecharModal();
+            await statusMensagem.ShowModalAwait("Erro!", "Erro ao fechar o caixa! "+ ex.Message);
+        }
+    }
+
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+
+    private IJSObjectReference? jsModule;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+
+
+}
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+<!--Modal fechaar caixa-->
+<div class="modal fade show" id="modalCaixaFechar" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #898686;">
+                <h4 class="modal-title text-white">
+                    <strong>
+                         &nbsp <img src="imagens/sistema/icon _dollar_.png" width="15px">
+                        &nbsp   &nbsp  Fechar Caixa
+                    </strong>
+                </h4>
+                <button type="button" @onclick='eventArgs=>FecharModal()' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="@lcx" OnValidSubmit="@CaixaFechar">
+                    <DataAnnotationsValidator />                 
+                    <div class="row">
+                        <div class="form-group col-md-5">
+                            <label>Caixa: </label>
+                            <InputNumber disabled id="id_caixa" placeholder=" Ex. R$ 100,00"
+                                       @bind-Value="cx.Id_caixa" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-7">
+                            <label>Saldo Atual: </label>
+                            <InputText disabled onkeyup="moedaFormat(this);" id="valorEstimado" placeholder=" Ex. R$ 100,00"
+                                       @bind-Value="saldo_final" class="form-control" />
+                        </div>
+                    </div>
+                    <br />
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            <label>Observação *: </label>
+                            <InputTextArea id="status" class="form-control form-control" @bind-Value="lcx.Observacao" />
+                        </div>
+                    </div>
+                    <br />
+                    <div class="row">
+                        @if(cx.Tipo?.ToLower() == "operacional")
+                        {
+                            <div class="form-group col-md-12">
+                                <label>Tipo do Caixa: </label>
+                                <InputText disabled id="tipocaixa"
+                                           @bind-Value="cx.Tipo" class="form-control" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="form-group col-md-6">
+                                <label>Tipo do Caixa: </label>
+                                <InputText disabled id="tipocaixa"
+                                           @bind-Value="cx.Tipo" class="form-control" />
+                            </div>
+
+                            <div class="form-group col-md-6">
+                                <label>Banco: </label>
+                                <InputText disabled id="tipocaixa"
+                                           @bind-Value="cx.BancoCaixa.Descricao" class="form-control" />
+                            </div>
+                        }
+
+                    </div>
+                    <br />
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            <label>Responsável pelo Fechamento: </label>
+                            <InputText disabled id="status" class="form-control form-control" @bind-Value="funcionarioFechar.Nome_completo" />
+                        </div>
+                    </div>
+                    <br />
+                 
+                    <div class="d-flex justify-content-center">
+                        <button type="submit" class="btn btn-success">
+                            <strong>
+                                Confirmar
+                            </strong>
+                        </button>
+                        <br />
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!--Modal de confirmação de fechamento-->
+<div class="modal fade show" id="modalConfirmarFechar" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #898686;">
+                <h4 class="modal-title text-white">
+                    <strong>
+                        &nbsp <img src="imagens/sistema/icon _dollar_.png" width="15px"/>
+                         O caixa Nº @cx.Id_caixa foi fechado com sucesso!
+                    </strong>
+                </h4>
+                <button type="button" @onclick='eventArgs=>FecharModal()' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        <div class="modal-body">
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        <label>Abertua: </label>
+                        <InputDate disabled id="dataAbertura" @bind-Value="cx.Data_abertura" class="form-control" />
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label>Fechamento: </label>
+                        <InputDate disabled id="dataAbertura" @bind-Value="cx.Data_fechamento" class="form-control" />
+                    </div>
+                </div>
+                <br />
+                <div class="row">
+                    <div class="form-group col-md-4">
+                        <label>Saldo Inicial: </label>
+                        <InputText disabled id="numeroCaixa" @bind-Value="saldo_inicial" class="form-control" />
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label>Entradas: </label>
+                        <InputText disabled id="numeroCaixa" @bind-Value="total_entradas" class="form-control" />
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label>Saídas: </label>
+                        <InputText disabled id="numeroCaixa" @bind-Value="total_saidas" class="form-control" />
+                    </div>
+                </div>
+                <br />
+                <div class="row">
+                    <div class="form-group col-md-12">
+                        <label>Saldo Atual: </label>
+                        <InputText disabled id="numeroCaixa" @bind-Value="saldo_final" class="form-control" />
+                    </div>
+                </div>
+                <br />
+                <div class="row">
+                    <div class="form-group col-md-12">
+                        <label>Responsável pelo Fechamento: </label>
+                        <InputText disabled id="numeroCaixa" @bind-Value="funcionarioFechar.Nome_completo" class="form-control" />
+                    </div>
+                </div>
+                <br />
+                <div class="d-flex justify-content-center">
+                    <a href="/caixas">
+                        <button type="submit" class="btn btn-success">
+                            <strong>
+                                OK &nbsp <i class="bi bi-book"></i>
+                            </strong>
+                        </button>
+                    </a>
+                    <br />
+                </div>
+        </div>
+    </div>
+</div>
+</div>

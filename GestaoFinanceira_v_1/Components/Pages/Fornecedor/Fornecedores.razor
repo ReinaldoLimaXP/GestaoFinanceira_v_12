@@ -1,0 +1,241 @@
+﻿@page "/fornecedores"
+@using Microsoft.EntityFrameworkCore
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject NavigationManager NavigationManager
+@inject FornecedorController _forncedorController
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+
+<PageTitle>Cadastro de Forncedores</PageTitle>
+
+<h1><b>Consulta de Fornecedores</b></h1>
+<hr />
+
+<p>Consulte um fornecedor cadastrado no sistema e utilize as opções disponíveis</p>
+
+<div class="input-group col-md-12">
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown="@Enter" @onkeyup="@Enter"
+                   @onkeypress="@Enter" />
+    </div>
+
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="zerar">--Selecionar--</option>
+            <option value="nome">Fantasia</option>
+            <option value="razao">Razão Social</option>
+            <option value="cnpj">CNPJ</option>
+            <option value="email">email</option>
+            <option value="telefone">telefone</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-1">
+        <br />
+        <a href="/fornecedor/cadastro">
+            <button style="z-index:0;" class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                Novo <i class="bi bi-plus-circle"></i>
+            </button>
+        </a>
+    </div>
+</div>
+
+<br />
+
+
+@if ((listaFornecedores == null || listaFornecedores.Count <= 0) && busca == "")
+{
+    <p><em>Não há fornecedores cadastrados!</em></p>
+
+}else if ((listaFornecedores == null || listaFornecedores.Count <= 0) && busca != "")
+{
+    <p><em>Carregando os fornecedores...</em></p>
+}
+else
+{
+    <!--table table-striped table-bordered table-sm-->
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>                
+                <th>Razão Social</th>
+                <th>Fantasia</th>
+                <th>CNPJ</th>
+                <th>E-mail</th>
+                <th>Telefone</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Fornecedor fornecedor in listaFornecedores)
+            {
+                <tr>
+
+                    <td>@fornecedor.Razao_social </td>
+                    <td>@fornecedor.Nome_fantasia</td>
+                    <td>@fornecedor.Cnpj </td>                    
+                    <td>@fornecedor.Email </td>
+                    <td>@fornecedor.Telefone1 </td>
+
+                    <td>
+                        <td>
+                        <a href="/fornecedor/imprimir/@fornecedor.Id_fornecedor">
+                            <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                        </a>
+                    </td>
+                    <td>
+                        <a href="/fornecedor/editar/@fornecedor.Id_fornecedor">
+                            <button class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                        </a>
+                    </td>
+                    <td>
+                        <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(fornecedor.Id_fornecedor)'><i class="bi bi-trash3-fill"></i></button>
+                    </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<Fornecedor> listaFornecedores { get; set; }
+    List<Fornecedor> listaFornecedores2 { get; set; }
+    string filtro = "zerar", busca = "";
+    string mensagemErro = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            listaFornecedores = new List<Fornecedor>();
+            listaFornecedores2 = new List<Fornecedor>();
+            listaFornecedores.Clear();
+            listaFornecedores = await _forncedorController.ListarFornecedoresawait();
+            listaFornecedores2.AddRange(listaFornecedores);
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", "Erro ao listar os fornecedores " + ex.Message);
+        }
+        
+    }
+    private async Task Filtrar()
+    {
+        listaFornecedores.Clear();
+        listaFornecedores.AddRange(listaFornecedores2);
+        try
+        {
+            if (filtro == "nome" || filtro == "zerar")
+            {
+                List<Fornecedor> listaEmpresaF = listaFornecedores.Where<Fornecedor>(x => x.Nome_fantasia.ToLower().Contains(busca.ToLower())).ToList();
+                listaFornecedores.Clear();
+                listaFornecedores.AddRange(listaEmpresaF);
+            }
+            else if (filtro == "razao")
+            {
+                List<Fornecedor> listaEmpresaT = listaFornecedores.Where<Fornecedor>(x => x.Razao_social.ToLower().Contains(busca.ToLower())).ToList();
+                listaFornecedores.Clear();
+                listaFornecedores.AddRange(listaEmpresaT);
+            }
+            else if (filtro == "cnpj")
+            {
+                List<Fornecedor> listaEmpresaT = listaFornecedores
+                    .Where<Fornecedor>(x => (x.Cnpj != null && x.Cnpj.ToLower().Contains(busca.ToLower()))).ToList();
+                listaFornecedores.Clear();
+                listaFornecedores.AddRange(listaEmpresaT);
+            }
+            else if (filtro == "email")
+            {
+                List<Fornecedor> listaEmpresaT = listaFornecedores
+                    .Where<Fornecedor>(x => (x.Email != null && x.Email.ToLower().Contains(busca.ToLower())) ||
+                    (x.Email2 != null && x.Email2.ToLower().Contains(busca.ToLower()))).ToList();
+                listaFornecedores.Clear();
+                listaFornecedores.AddRange(listaEmpresaT);
+            }
+            else if (filtro == "telefone")
+            {
+                List<Fornecedor> listaEmpresaT = listaFornecedores
+                    .Where<Fornecedor>(x => (x.Telefone1 != null && x.Telefone1.ToLower().Contains(busca.ToLower())) ||
+                    (x.Telefone2 != null && x.Telefone2.ToLower().Contains(busca.ToLower()))).ToList();
+                listaFornecedores.Clear();
+                listaFornecedores.AddRange(listaEmpresaT);
+            }
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    public void Enter(KeyboardEventArgs e)
+    {
+        this.Filtrar();
+    }
+
+    private void CheckChanged()
+    {
+        this.Filtrar();
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm)
+    {
+        NavigationManager.NavigateTo("/fornecedores");
+    }
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    Fornecedor fornecedorExcluir = new Fornecedor();
+    protected void ExibirmodalExcluir(int id_fornecedor)
+    {
+        fornecedorExcluir = listaFornecedores.SingleOrDefault(x => x.Id_fornecedor == id_fornecedor);
+        if (fornecedorExcluir != null)
+        {
+            confirmar.ShowModalConfirmacao($"Você tem certeza que deseja excluir o fornecedor {fornecedorExcluir.Nome_fantasia} ?");
+        }
+    }
+
+    protected void ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                _forncedorController.Deletar(fornecedorExcluir.Id_fornecedor);
+                listaFornecedores.Remove(fornecedorExcluir);
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", ex.Message);
+
+        }
+    }
+
+
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}
+
+<!--Realiza a incorporação do modal de mensagem-->
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />

@@ -1,0 +1,81 @@
+﻿@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@rendermode InteractiveServer
+
+<div class="modal fade show" id="modalExcluir" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Excluir</h5>
+                <button type="button" @onclick='eventArgs=>EscolharModal(false)' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    @MensagemConfirmacao
+                </p>
+                <p>
+                    @MenssagemErro
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" @onclick='() => EscolharModal(true)'>Sim</button>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>EscolharModal(false)'>Não</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public string? MenssagemErro { get; set; }
+    public string? MensagemConfirmacao{ get; set; }
+    public string? Retorno { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> UserChouse{ get; set; }
+
+    //Colocar um parâmetro para o título
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    public void ShowModalConfirmacao(string mensagem)
+    {
+        MensagemConfirmacao = mensagem;
+        JSRuntime.InvokeAsync<string>("modal.showModal", "modalExcluir");
+    }
+
+    public async void EscolharModal(bool valor)
+    {
+        await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalExcluir");
+        await UserChouse.InvokeAsync(valor);
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    
+}

@@ -1,0 +1,257 @@
+﻿@page "/funcionarios"
+@inject NavigationManager NavigationManager
+@inject FuncionarioController _controllerFuncionario
+@rendermode InteractiveServer
+
+
+<PageTitle>Funcionários</PageTitle>
+
+<h1><b>Consulta de Funcionários</b></h1>
+<hr />
+
+<p>Consulte um funcionário cadastrado no sistema e utilize as opções disponíveis</p>
+
+<div class="input-group col-md-12">
+
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown="@Enter" @onkeyup="@Enter"
+        @onkeypress="@Enter" />
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="zerar">--Selecionar--</option>
+            <option value="nome">Nome</option>
+            <option value="cpf">CPF</option>
+            <option value="funcao">Função</option>
+            <option value="email">E-mail</option>
+            <option value="telefone">Telefone</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-1">
+        <br />
+        <a href="/funcionario/cadastro" style="z-index:0;" class="btn btn-primary"> Novo <i class="bi bi-plus-circle"></i></a>
+    </div>
+</div>
+
+<br />
+
+
+@if ((listaFuncionario == null || listaFuncionario.Count <= 0) && busca == "")
+{
+    <p><em>Carregando as funcionários...</em></p>
+
+}
+else
+{
+    <!--table table-striped table-bordered table-sm-->
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>CPF</th>
+                <th>Função</th>
+                <th>Celular</th>
+                <th>E-mail</th>
+                <th>Empresa</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Funcionario f in listaFuncionario)
+            {
+                <tr>
+
+                    <td>@f.Nome_completo </td>
+                    <td>@f.Cpf</td>
+                    @if(f.Funcao_fun != null)
+                    {
+                        <td>@f.Funcao_fun.Nome_funcao </td>
+                    }
+                    else
+                    {
+                        <td>-- </td>
+                    }
+                    
+                    <td>@f.Celular </td>
+                    <td>@f.Email_pessoal </td>
+                    @if(f.Empresa_fun != null)
+                    {
+                        <td>@f.Empresa_fun.Nome_fantasia </td>
+                    }
+                    else
+                    {
+                        <td>--</td>
+                    }
+                    
+                    <td>
+                        <td>
+                            <a href="/funcionario/imprimir/@f.Id_funcionario">
+                                <button class="btn-olho btn">
+                                    <i class="bi bi-eye-fill"></i>
+                                </button>
+                            </a>
+                        </td>
+                        <td>
+                            <a href="/funcionario/editar/@f.Id_funcionario">
+                                <button class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                            </a>
+                        </td>
+                        <td>
+                            <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(f.Id_funcionario)'><i class="bi bi-trash3-fill"></i></button>
+                        </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string filtro = "zerar", busca = "";
+    List<Funcionario> listaFuncionario { get; set; } = new List<Funcionario>();
+    List<Funcionario> listaFuncionario2 { get; set; } = new List<Funcionario>();
+
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            listaFuncionario = new List<Funcionario>();
+            listaFuncionario2 = new List<Funcionario>();
+            listaFuncionario.Clear();
+            //Implementar regra a depender do perfil
+            //Colocar o método assincrono
+            listaFuncionario = _controllerFuncionario.ListarFuncionarios();
+            listaFuncionario2.AddRange(listaFuncionario);
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao carregar a página de funcionário " + ex.Message);
+        }
+    }
+
+    private void Filtrar()
+    {
+        listaFuncionario.Clear();
+        listaFuncionario.AddRange(listaFuncionario2);
+        try
+        {
+            if (filtro == "cpf")
+            {
+                List<Funcionario> listaFuncio = listaFuncionario.Where(x => x.Cpf.ToLower().Contains(busca.ToLower())).ToList();
+                listaFuncionario.Clear();
+                listaFuncionario.AddRange(listaFuncio);
+            }
+            else if(filtro == "nome")
+            {
+                List<Funcionario> listaFuncio = listaFuncionario.Where(x => x.Nome_completo.ToLower().Contains(busca.ToLower())).ToList();
+                listaFuncionario.Clear();
+                listaFuncionario.AddRange(listaFuncio);
+            }
+            else if (filtro == "email")
+            {
+                List<Funcionario> listaFuncio = listaFuncionario
+                    .Where(x => (x.Email_pessoal != null && x.Email_pessoal.ToLower().Contains(busca.ToLower())) ||
+                            (x.Email_profissional != null && x.Email_profissional.ToLower().Contains(busca.ToLower())))
+                    .ToList();
+                listaFuncionario.Clear();
+                listaFuncionario.AddRange(listaFuncio);
+            }
+            else if (filtro == "funcao")
+            {
+                List<Funcionario> listaFuncio = listaFuncionario
+                    .Where(x => (x.Funcao_fun != null && x.Funcao_fun.Nome_funcao.ToLower().Contains(busca.ToLower())))
+                    .ToList();
+                listaFuncionario.Clear();
+                listaFuncionario.AddRange(listaFuncio);
+            }
+            else if (filtro == "telefone")
+            {
+                List<Funcionario> listaFuncio = listaFuncionario
+                    .Where(x => (x.Tel_casa != null && x.Tel_casa.ToLower().Contains(busca.ToLower())) ||
+                            (x.Celular != null && x.Celular.ToLower().Contains(busca.ToLower())))
+                    .ToList();
+                listaFuncionario.Clear();
+                listaFuncionario.AddRange(listaFuncio);
+            }
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    public void Enter(KeyboardEventArgs e)
+    {
+        this.Filtrar();
+    }
+
+    private void CheckChanged()
+    {
+        this.Filtrar();
+    }
+
+    Funcionario funExcluir = new Funcionario();
+    protected void ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                _controllerFuncionario.Deletar(funExcluir.Id_funcionario);
+                listaFuncionario.Remove(funExcluir);
+            }
+        }
+        catch (Exception ex)
+        {
+            MensagemModal("Erro", ex.Message);
+        }
+    }
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    public void ExibirmodalExcluir(int id_funcionario)
+    {
+        try
+        {
+            funExcluir = listaFuncionario.SingleOrDefault(x => x.Id_funcionario == id_funcionario);
+            if (funExcluir != null)
+            {
+                confirmar.ShowModalConfirmacao($"Você tem certeza que deseja excluir o funcionário {funExcluir.Nome_completo}?");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            //await JSRuntime.InvokeAsync<string>("modal.showModal", elementoID);
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+     */
+    protected void ConfirmarMensagem(bool confirm) { }
+
+}
+
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+

@@ -1,0 +1,174 @@
+﻿@implements IDisposable
+@inject FuncionarioController _controllerFuncionario
+@inject NavigationManager NavigationManager
+<div class="bg-teste ps-3 navbar">
+    <a class="navbar-brand" href=""><img src="imagens/sistema/NomeSistema.png" class="imgLogo" /></a>
+</div>
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<div class="nav-scrollable navbar bg-teste" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="itemCor nav-link" href="" Match="NavLinkMatch.All">
+                        <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itenCor" href="/clientes">
+                        <span class="d-block">
+                            <span style="font-size: 20px" class="bi bi-person-fill" aria-hidden="true"></span>
+                            &nbsp Clientes
+                        </span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3" itemCor>
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/funcionarios">
+                        <span class="d-block">
+                            <span style="font-size: 20px" class="bi bi-people-fill" aria-hidden="true"></span>
+                            &nbsp Funcionários
+                        </span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/empresas">
+                        <span class="d-block">
+                            <span style="font-size: 20px" class="bi bi-graph-up" aria-hidden="true"></span>
+                            &nbsp Empresas
+                        </span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/fornecedores">
+                        <span class="d-block">
+                            <span style="font-size: 20px" class="bi bi-person-raised-hand" aria-hidden="true"></span>
+                            &nbsp Fornecedores
+                        </span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/servicos">
+                        <span class="d-block">
+                            <span style="font-size: 20px" class="bi bi-wrench align-items-center" aria-hidden="true"></span>
+                            &nbsp Serviços
+                        </span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/veiculos">
+                        <span class="d-block">
+                            <i style="font-size: 20px" class="bi bi-truck "></i>
+                        </span>
+                        &nbsp Veículos
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/vendas">
+                        <span class="d-block">
+                            <i style="font-size: 20px" class="bi bi-cart-plus"></i>
+                        </span>
+                        &nbsp Vendas
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/financeiro">
+                        <span class="d-block">
+                            <i style="font-size: 20px" class="bi bi-cash-coin"></i>
+                        </span>
+                        &nbsp Financeiro
+                    </NavLink>
+                </div>
+
+            </Authorized>
+        </AuthorizeView>
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="/relatorios">
+                        <span class="d-block">
+                            <i style="font-size: 20px" class="bi bi-file-earmark-text"></i>
+                        </span> Relatórios
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink style="background-color:#363636" class="nav-link itemCor" href="Account/Usuarios">
+                        <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Registro
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+        <AuthorizeView>
+            <!--
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="Account/Manage">
+                    <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
+                </NavLink>
+            </div>
+                    -->
+            <Authorized>
+                <div class="nav-item px-3">
+                    <form action="Account/Logout" method="post">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                        <button style="background-color:#363636" type="submit" class="nav-link">
+                            <span class="bi bi-arrow-bar-left-nav-menu" aria-hidden="true"></span> Logout
+                        </button>
+                    </form>
+                </div>
+
+            </Authorized>
+            <NotAuthorized>
+                <!--
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Register">
+                        <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Register
+                    </NavLink>
+                </div>
+                -->
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Login">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Login
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+        <!-- Seção para exibir a foto e o nome do usuário 
+        <div class="nav-item px-3 mt-auto">
+            <a href="/Account/Manage" class="d-flex flex-column align-items-center">
+                <img class="iconeUsuario rounded-circle" src="@imagem" alt="Usuário" style="width: 50px; height: 50px;" />
+                <span class="mt-1">Elias de Abreu</span>
+            </a>
+        </div>
+        -->
+    </nav>
+</div>
+
+@code {
+    private string? currentUrl;
+    string imagem = "imagensClientes/camera.png";
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}
+

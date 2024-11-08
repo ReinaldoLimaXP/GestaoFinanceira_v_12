@@ -1,0 +1,343 @@
+﻿@page "/pagamentos"
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject CaixaController _caixaController
+@inject NavigationManager NavigationManager
+@inject DespesaController _controllerDespesas
+@inject FuncionarioController _funcionariosController
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@attribute [Authorize]
+
+<PageTitle>Pagamento</PageTitle>
+
+
+<h1><b>Contas a Pagar</b></h1>
+<hr />
+
+<p>Consulte parcelas em aberto e faça o pagamento no sistema conforme opções disponíveis </p>
+
+<div class="input-group col-md-10">
+
+    <div class="form-group col-md-8">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" />
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="descricao">Descrição</option>
+            <option value="fornecedor">Fornecedor</option>
+            <option value="vencimento">Vencimento</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary">
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+</div>
+<br />
+<div class="input-group col-md-12 d-flex justify-content-center align-items-center">
+    <InputRadioGroup required Name="Emissao" ValueChanged="@((string value) => Selecionar(value))"
+                     ValueExpression="@(() => tipoC)" Value="@tipoC">
+        @foreach (string em in Opcaoes)
+        {
+            <div class="form-group col-md-2">
+                <InputRadio class="form-check-input cursorpointer" id="@em" Value="em" />
+                <label class="cursorpointer" for="@em">@em</label>
+            </div>
+
+        }
+    </InputRadioGroup>
+</div>
+<br />
+@if ((ListaDespesas == null || ListaDespesas.Count <= 0) && busca == "")
+{
+    <p><em>Nenhuma despesa a pagar</em></p>
+}
+else if ((ListaDespesas == null || ListaDespesas.Count <= 0) && busca != "")
+{
+    <p><em>Despesas não encontrados com a busca!</em></p>
+}
+else
+{
+     <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Data</th>
+                <th>Fornecedor</th>
+                <th>Descrição</th>
+                @if (tipoC == "Abertas")
+                {
+                    <th>Vencimento </th>
+                }
+                else
+                {
+                    <th>Pagamento </th>
+                }
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Despesa despesa in ListaDespesas)
+            {
+                <tr>
+
+                    <td>@despesa.Id_despesa </td>
+                    <td>@despesa.Datalacamento</td>
+                    <td>@despesa.FornecedorDespesa.Nome_fantasia</td>
+                    <td>@despesa.Descricao </td>
+                    @if (tipoC == "Abertas")
+                    {
+                         <td>@despesa.Vencimento </td>                        
+                    }
+                    else
+                    {
+                        <td>@despesa.DataPagamento </td>
+                    }
+                    <td>@despesa.Valor.ToString("C2") </td>
+                    @if (@despesa.Status_des.ToLower() == "aberto")
+                    {
+                        <td class="text-danger"><strong>@despesa.Status_des</strong></td>
+                    }
+                    else
+                    {
+                        <td class="text-success"><strong>@despesa.Status_des</strong></td>
+                    }
+                    <td>
+                    <td>
+                        @if (despesa.Status_des.ToLower() == "aberto")
+                        {
+                            <a href="despesa/imprimir/@despesa.Id_despesa">
+                                <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                            </a>
+                        }
+                        else
+                        {
+                            <a href="pagamentoDetalhe/@despesa.Id_despesa">
+                                <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                            </a>
+                            }
+                        </td>
+                    <td>
+                        @if (despesa.Status_des.ToLower() == "aberto")
+                        {
+                            <label>&nbsp</label>
+                            <button class="btn-pagamento btn" @onclick='() => ExibirmodalPagamento(despesa.Id_despesa)'>Pagar &nbsp <i class="bi bi-credit-card"> </i></button>
+                        }
+                        else
+                        {
+                            <label>&nbsp</label>
+                            <button class="btn btn-danger" @onclick='()=>ShowModalEstorno(despesa.Id_despesa)'><i class="bi bi-trash3-fill"></i></button>
+                        }
+                    </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+@code {
+    string filtro = "descricao", busca = "",fil;
+    List<string> Opcaoes { get; set; } = new List<string> { "Abertas", "Fechadas" };
+    List<Despesa> ListaDespesas { get; set; } = new List<Despesa>();
+    List<Despesa> ListaDespesas2 { get; set; } = new List<Despesa>();
+    string tipoC = "Abertas";
+    string IdLogado;
+    ApplicationUser usuario;
+    Funcionario funcionario = new Funcionario();
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ListaDespesas2 = new List<Despesa>();
+
+            IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            usuario = UserManager.FindByIdAsync(IdLogado).Result;
+
+            funcionario = await _funcionariosController.BuscarIDAwait(usuario.Id_funcionario);
+
+            ListaDespesas2 = await _controllerDespesas.ListarDespesasEmpresaawait(funcionario.Fk_id_empresa);
+            ListaDespesas = ListaDespesas2.Where(x => x.Status_des.ToLower() == "aberto").ToList();
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    protected void Selecionar(string tipoC)
+    {
+        this.tipoC = tipoC;
+        ListaDespesas.Clear();
+        if (tipoC == "Abertas")
+        {
+            ListaDespesas = ListaDespesas2.Where(x => x.Status_des.ToLower() == "aberto").ToList();
+        }
+        else if (tipoC == "Fechadas")
+        {
+            ListaDespesas = ListaDespesas2.Where(x => x.Status_des.ToLower() == "fechado").ToList();
+        }
+    }
+
+    Despesa desEstorno = new Despesa();
+    public void ShowModalEstorno(int id_despesa)
+    {
+        try
+        {
+            JSRuntime.InvokeAsync<string>("modal.showModal", "modalEstornoDespesa");
+            desEstorno = ListaDespesas2.FirstOrDefault(x => x.Id_despesa == id_despesa);
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    protected async Task ExibirmodalPagamento(int id_pagamento)
+    {
+        /*Pegar o funcionário logado*/
+        //string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+        //var id_fun = HttpContext.User.FindFirst("Id_funcionario").Value;
+        //ApplicationUser usuario = UserManager.FindByIdAsync(IdLogado).Result;
+        try{
+            List<Caixa> listaCaixa = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+            listaCaixa = listaCaixa.Where(x => x.Status.ToLower() == "aberto").ToList();
+            if (listaCaixa.Any())
+            {
+                Despesa? e = ListaDespesas2.FirstOrDefault(x => x.Id_despesa == id_pagamento);
+                await pagamentoModal.ShowModalPagamento(id_pagamento, usuario);
+            }
+            else
+            {
+                statusMensagem.ShowModal("Erro", "Usuário não possui caixa aberto!");
+            }
+        }
+        catch (Exception)
+        {
+            statusMensagem.ShowModal("Erro", "Ocorreu um erro inesperado no sistema, atualize a página e tente novamente!");
+        }
+    }
+
+    protected ModalPagamento pagamentoModal = new ModalPagamento();
+    protected void ConfirmarPagamento(bool confirm)
+    {
+        if (confirm == true)
+        {
+            statusMensagem.ShowModal("Recebimento", "Pagamento realizado com sucesso");
+            ListaDespesas = ListaDespesas2.Where(x => x.Status_des.ToLower() == "fechado").ToList();
+            tipoC = "Fechadas";
+        }
+    }
+
+    public void FecharModal()
+    {
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalEstornoDespesa");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await jsModule.InvokeAsync<IJSObjectReference>(
+                  "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                //mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    private async Task Estorno()
+    {
+        if (usuario.Id_funcionario == desEstorno.CaixaPagamento.Funcionario_Caixa.Id_funcionario)
+        {
+            try
+            {
+                Caixa caixaEstorno = await _caixaController.BuscarId(desEstorno.CaixaPagamento.Id_caixa);
+                if(caixaEstorno.Status == "Fechado")
+                {
+                    statusMensagem.ShowModal("Atenção", "O caixa que realizou o pagamento não está aberto. Realize a abertura do mesmo para realizar o cancelamento");
+                }
+                else
+                {
+                    await _controllerDespesas.CancelarPagamentoDespesa(desEstorno);
+                    desEstorno.Status_des = "Aberto";
+                    ListaDespesas = ListaDespesas2.Where(x => x.Status_des.ToLower() == "aberto").ToList();
+                    FecharModal();
+                    statusMensagem.ShowModal("Cancelamento", "Pagamento cancelado com sucesso!");
+                    tipoC = "Abertas";
+                }
+
+            }catch(Exception ex)
+            {
+                statusMensagem.ShowModal("Erro", "Erro ao tentar realizar o estorno");
+            }
+        }
+        else
+        {
+            FecharModal();
+            statusMensagem.ShowModal("Atenção", "O estorno de um pagamento só pode ser realizado pelo usuário que realizou o pagamento!");
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+
+}
+
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+<ModalPagamento @ref="@pagamentoModal" UserChouse="ConfirmarPagamento" />
+
+
+<div class="modal fade show" id="modalEstornoDespesa" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cancelar o pagamento</h5>
+                <button type="button" @onclick='eventArgs=>FecharModal()' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Tem certeza que deseja cancelar o pagamento?
+                </p>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" @onclick='() =>FecharModal()'>Não</button>
+                <button type="button" class="btn btn-danger" @onclick='() =>Estorno()'>Sim</button>
+            </div>
+        </div>
+    </div>
+</div>

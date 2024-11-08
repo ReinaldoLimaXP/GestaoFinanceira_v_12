@@ -1,0 +1,216 @@
+﻿@page "/Account/Register"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using GestaoFinanceira_v_1.Data
+
+
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RolerManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject ILogger<Register> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject FuncionarioController _funcionarioController
+
+<PageTitle>Registro</PageTitle>
+
+<h1>Cadastro de Usuário</h1>
+
+<div class="row">
+    <div class="col-md-12">
+        <StatusMessage Message="@Message" />
+        <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register">
+            <DataAnnotationsValidator />
+            <hr />
+            <!--<ValidationSummary class="text-danger" role="alert" />-->
+
+            <div class="form-floating col-md-9">
+                <InputSelect @bind-Value="Input.id_funcionario" class="form-select">
+                    <option value=""></option>
+                    @if (funcionarioList != null)
+                    {
+                        @foreach (Funcionario f in funcionarioList)
+                        {
+                            <option value="@f.Id_funcionario"> @f.Nome_completo</option>
+                        }
+
+                    }
+                </InputSelect>
+                <label for="funcionario">Vincular Funcionário</label>
+                <ValidationMessage For="() => Input.id_funcionario" class="text-danger" />
+            </div>
+            <br />
+
+            <div class="form-floating col-md-9">
+                <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                <label for="email">Email *</label>
+                <ValidationMessage For="() => Input.Email" class="text-danger" />
+            </div>
+            <br />
+            <div class="input-group col-md-9">
+                <div class="form-floating col-md-4">
+                    <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                    <label for="password">Senha *</label>
+                    <ValidationMessage For="() => Input.Password" class="text-danger" />
+                </div>
+                &nbsp &nbsp &nbsp  &nbsp &nbsp &nbsp &nbsp  &nbsp
+                <div class="form-floating col-md-4">
+                    <InputText type="password" @bind-Value="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                    <label for="confirm-password">Confirmar senha *</label>
+                    <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
+                </div>
+            </div>
+            <br />
+            <div class="form-floating col-md-9">
+                <InputSelect @bind-Value="Input.RolaName" class="form-select">
+                    <option value=""></option>
+                    @if (funcionarioList != null)
+                    {
+                        @foreach (IdentityRole f in rolesList)
+                        {
+                            <option value="@f.Name"> @f.Name</option>
+                        }
+
+                    }
+                </InputSelect>
+                <label for="funcionario">Perfil de Acesso</label>
+                <ValidationMessage For="() => Input.id_funcionario" class="text-danger" />
+            </div>
+
+            <br />
+            <a href="/Account/Usuarios">
+                <button type="button" class="btn btn-danger bi bi-searche">
+                    Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                </button>
+            </a>
+            <button type="submit" class="btn btn-success create">
+                Salvar &nbsp <i class="fa fa-save"></i>
+            </button>
+        </EditForm>
+    </div>
+
+</div>
+
+@code {
+    private IEnumerable<IdentityError>? identityErrors;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    List<Funcionario>? funcionarioList { get; set; }
+    List<IdentityRole>? rolesList { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized()
+    {
+        funcionarioList = _funcionarioController.ListarFuncionarios();
+        rolesList = RolerManager.Roles.ToList();
+    }
+
+    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
+
+    public async Task RegisterUser(EditContext editContext)
+    {
+        Funcionario fd = _funcionarioController.BuscarID(Input.id_funcionario);
+        var user = new ApplicationUser { Nome_Usuario = fd.Nome_completo, Id_funcionario = Input.id_funcionario };
+
+        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        var emailStore = GetEmailStore();
+        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+        var result = await UserManager.CreateAsync(user, Input.Password);
+
+        if (!result.Succeeded)
+        {
+            identityErrors = result.Errors;
+            return;
+        }
+
+        Logger.LogInformation("O usuário criou uma nova conta com senha.");
+
+        //Implementar a role a user
+        var userId = await UserManager.GetUserIdAsync(user);
+        result = await UserManager.AddToRoleAsync(user, Input.RolaName);
+
+        /*
+        var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+        var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+            NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+
+        await EmailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
+
+        if (UserManager.Options.SignIn.RequireConfirmedAccount)
+        {
+            RedirectManager.RedirectTo(
+                "Account/RegisterConfirmation",
+                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+        }*/
+        /*Comentei essa linha para continuar logado com o usuário atual*/
+        //await SignInManager.SignInAsync(user, isPersistent: false);
+        RedirectManager.RedirectTo("/Account/Usuarios");
+    }
+
+    private ApplicationUser CreateUser()
+    {
+        try
+        {
+            return Activator.CreateInstance<ApplicationUser>();
+        }
+        catch
+        {
+            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
+                $"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and has a parameterless constructor.");
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("A IU padrão requer um repositório de usuários com suporte por email.");
+        }
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "O campo E-mail é obrigatório.")]
+        [EmailAddress]
+        [Display(Name = "E-mail")]
+        public string Email { get; set; } = "";
+
+        /*Adicionei esse campo para salvar o nome do usuário direto na tabela aspentusers*/
+
+        [Display(Name = "Nome")]
+        public string Nome_Usuario { get; set; } = "";
+
+        [Required(ErrorMessage = "O campo Senha é obrigatório.")]
+        [StringLength(100, ErrorMessage = "A {0} deve ter no mínimo {2} e no máximo {1} caracteres", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Senha")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        [Compare("Password", ErrorMessage = "A senha e a senha de confirmação não coincidem.")]
+        public string ConfirmPassword { get; set; } = "";
+
+        /*Atributo responsável para colocar a chave estrangeira fk_id_funcionario na tabela aspenetUsers*/
+        [Required(ErrorMessage = "O campo funcionário é obrigatório.")]
+        [Display(Name = "Vincular Funcionário")]
+        public int id_funcionario { get; set; } = default!;
+
+        [Required(ErrorMessage = "O Perfil de Acesso é obrigatório.")]
+        [Display(Name = "Perfil de Acesso")]
+        public string RolaName { get; set; }
+    }
+}

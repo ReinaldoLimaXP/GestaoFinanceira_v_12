@@ -1,0 +1,549 @@
+﻿@page "/recebimentos"
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject CaixaController _caixaController
+@inject NavigationManager NavigationManager
+@inject VendaController _vendaController
+@inject RecebimentoController _recebimentoController
+@inject EncargoController _encargoController
+@inject FuncionarioController _funcionariosController
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>Recebimentos</PageTitle>
+
+
+
+<h1><b>Contas a receber</b></h1>
+<hr />
+
+<p>Consulte parcelas em aberto e faça o recebimento no sistema conforme opções disponíveis </p>
+
+
+<div class="input-group col-md-10">
+
+    <div class="form-group col-md-6">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown='()=> Filtrar()' @onkeyup='()=> Filtrar()' @onkeypress='()=> Filtrar()' />
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="codigo">Código/ID</option>
+            <option value="vencimento">Vencimento</option>
+            <option value="valor">Valor</option>
+            <option value="cliente">Cliente</option>
+            <option value="IdVenda">Id Venda</option>
+            <option value="data">Data de Registro</option>
+            <option value="encargos">Encargos</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='()=> Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-2">
+        <br />
+        <button style="z-index:0;" type="submit" @onclick="(()=>ExibirmodalAvulso())" class="btn btn-danger" data-toggle="modal" data-target="#modalAvulso">
+                Avulso <i class="bi bi-plus-circle"></i>
+            </button>
+    </div>
+</div>
+
+<br />
+<div class="input-group col-md-12 d-flex justify-content-center align-items-center">
+    <InputRadioGroup required Name="Emissao"  ValueChanged="@((string value) => Selecionar(value))"
+                     ValueExpression="@(() => tipoC)" Value="@tipoC">
+        @foreach (string em in Opcaoes)
+        {
+            <div class="form-group col-md-2">
+                <InputRadio class="form-check-input cursorpointer" id="@em" Value="em" />
+                <label class="cursorpointer" for="@em">@em</label>
+            </div>
+
+        }
+    </InputRadioGroup>
+</div>
+<br />
+@if (ListaRecebimentos.Count <= 0 && busca == "")
+{
+    <p><em>Não há recebimentos</em></p>
+}
+else
+{
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>ID da Venda</th>
+                <th>Data da Venda</th>
+                <th>Cliente</th>
+                <th>Observação</th>
+                <th>Parcela</th>
+                @if(tipoC == "Abertas")
+                {
+                <th>Vencimento </th>
+                }
+                else
+                {
+                    <th>Pagamento </th>
+                }
+                <th>Encargos</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Recebimento rec in ListaRecebimentos)
+            {
+                <tr>
+                    <td>@rec.Venda?.Id_venda</td>
+
+                    <td> @rec.DataRegistro</td>
+                    
+                    @if (rec.Venda?.Cliente is null || rec.Venda.Cliente.Id_cliente == 0)
+                    {
+                        <td>--</td>
+                    }
+                    else
+                    {
+                        @if (rec.Venda.Cliente is ClientePF)
+                        {
+                            try
+                            {
+                                ClientePF c = rec.Venda.Cliente as ClientePF;
+                                <td>
+                                    @c.Nome_cli
+                                </td>
+                            }
+                            catch (Exception) { }
+                        }
+                        else if (rec.Venda.Cliente is ClientePJ)
+                        {
+                            try
+                            {
+                                ClientePJ pj = rec.Venda.Cliente as ClientePJ;
+                                <td>
+                                    @pj.NomeFantasia_PJ
+                                </td>
+                            }
+                            catch (Exception) { }
+                        }
+                    }
+                    <td> @rec.Venda?.Observacoes</td>
+                    <td>@rec.Nparcela</td>
+                    <td>
+                        @if (rec.StatusRecebimento == "Aberto")
+                        {
+                            @rec.DataVencimento
+                        }
+                        else
+                        {
+                            @rec.DataPagamento
+                        }
+                    </td> 
+                    @if (@rec.DispositivoRec != null)
+                    {
+                    <td>
+                            @rec.DispositivoRec.Descricao - @rec.DispositivoRec.Alicota
+                    </td>
+                        }
+                    else
+                    {
+                        <td>--</td>
+                      }
+                    <td>@rec.ValorParcela.ToString("C2")</td>
+                    @if (@rec.StatusRecebimento.ToLower() == "aberto")
+                    {
+                        <td class="text-danger"><strong>@rec.StatusRecebimento</strong></td>
+                    }
+                    else
+                    {
+                        <td class="text-success"><strong>@rec.StatusRecebimento</strong></td>
+                    }
+                    <td>
+                        <td>
+                                @if (rec?.Venda is not null && @rec.Venda?.Id_venda > 0)
+                                {
+                                <a href="/vendas/recibo/@rec.Venda?.Id_venda">
+                                    <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                                    </a>
+                                }
+                                else
+                                {
+                                <button class="btn-olho btn" disabled><i class="bi bi-eye-fill"></i></button>
+                                }
+
+                        </td>
+                        <td>
+                            @if (@rec.StatusRecebimento.ToLower()== "aberto")
+                            {
+                                <button class="btn-receber" @onclick='() => ExibirmodalRecebimento(rec.Id_recebimento)'>Receber &nbsp <img src="imagens/sistema/icon _dollar_.png" width="10px" /></button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-danger" @onclick='()=>ShowModalEstorno(rec.Id_recebimento)'><i class="bi bi-trash3-fill"></i></button>
+                            }
+                        </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string filtro = "codigo", busca = "";
+    List<string> Opcaoes { get; set; } = new List<string> {"Abertas", "Fechadas" };
+    string tipoC = "Abertas";
+    List<Recebimento> ListaRecebimentos { get; set; } = new List<Recebimento>();
+    List<Recebimento> ListaRecebimentos2 { get; set; } = new List<Recebimento>();
+    Recebimento recEstorno = new Recebimento();
+    protected RecebimentoAvulso receberAvulso = new RecebimentoAvulso();
+    /*Pegar o funcionário logado*/
+    string IdLogado;
+    ApplicationUser usuario = new ApplicationUser();
+    Funcionario funcionario = new Funcionario();
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            usuario = UserManager.FindByIdAsync(IdLogado).Result;
+            funcionario = await _funcionariosController.BuscarIDAwait(usuario.Id_funcionario);
+            ListaRecebimentos2 = await _recebimentoController.ListarTodosAwait(funcionario.Fk_id_empresa);
+            ListaRecebimentos = ListaRecebimentos2.Where(x => x.StatusRecebimento.ToLower() == "aberto").OrderBy(x=>x.DataVencimento).ToList();
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao listar as vendas!");
+        }
+    }  
+
+    private void Filtrar()
+    {
+        ListaRecebimentos.Clear();
+        if (tipoC == "Abertas")
+        {
+            ListaRecebimentos = ListaRecebimentos2.Where(x => x.StatusRecebimento.ToLower() == "aberto").OrderBy(x => x.DataVencimento).ToList();
+        }
+        else if (tipoC == "Fechadas")
+        {
+            ListaRecebimentos = ListaRecebimentos2.Where(x => x.StatusRecebimento.ToLower() == "fechado").OrderByDescending(x => x.DataPagamento).ThenByDescending(x => x.HoraPagamento).ToList();
+        }
+        try
+        {
+            if (filtro == "codigo")
+            {
+                //ok
+                ListaRecebimentos = ListaRecebimentos.Where(x => x.Id_recebimento.ToString().ToLower().Contains(busca.ToLower())).ToList();
+            }
+            else if (filtro == "vencimento")
+            {
+                //ok
+                ListaRecebimentos = ListaRecebimentos.Where(x => x.DataVencimento.ToString().ToLower().Contains(busca.ToLower())).ToList();
+            }
+            else if (filtro == "valor")
+            {
+                //ok
+                ListaRecebimentos = ListaRecebimentos.Where(x => x.ValorParcela.ToString().ToLower() == busca.ToLower()).ToList();
+            }
+            else if (filtro == "IdVenda")
+            {
+                //ok
+                ListaRecebimentos = ListaRecebimentos.Where(x => x.Fk_id_venda.ToString().ToLower().Contains(busca.ToLower())).ToList();
+            }
+            else if (filtro == "data")
+            {
+                //ok
+                ListaRecebimentos = ListaRecebimentos.Where(x => x.DataRegistro.ToString().ToLower().Contains(busca.ToLower())).ToList();
+            }
+            else if (filtro == "encargos")
+            {
+                ListaRecebimentos  = ListaRecebimentos
+                    .Where(x => x.DispositivoRec != null &&
+                                x.DispositivoRec.Descricao != null &&
+                                x.DispositivoRec.Descricao.ToString().ToLower().Contains(busca.ToLower()))
+                    .ToList();
+            }
+            else if (filtro == "cliente" && busca.Length > 0)
+            {
+                ListaRecebimentos = ListaRecebimentos.Where(recebimento =>
+                    (recebimento.Venda?.Cliente is ClientePF clientePF &&
+                     clientePF.Nome_cli != null &&
+                     clientePF.Nome_cli.ToLower().Contains(busca.ToLower())) ||
+                    (recebimento.Venda?.Cliente is ClientePJ clientePJ &&
+                     clientePJ.NomeFantasia_PJ != null &&
+                     clientePJ.NomeFantasia_PJ.ToLower().Contains(busca.ToLower()))
+                    ).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+    Recebimento receber = new Recebimento();
+    protected async Task ExibirmodalRecebimento(int id_recebimento)
+    {
+        try
+        {
+            receber = ListaRecebimentos2.First(x => x.Id_recebimento == id_recebimento);
+            Caixa? x = await _caixaController.BuscarOperacionalAbertoFuncionario(usuario.Id_funcionario);
+            List<Caixa> listaCaixa = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+            listaCaixa = listaCaixa.Where(x => x.Status.Equals("aberto", StringComparison.InvariantCultureIgnoreCase)
+                && x.Tipo.Equals("banco", StringComparison.InvariantCultureIgnoreCase)).ToList();
+
+            /*Verifica se o pagamento é de um tipo que irá para o caixa banco se a lista está vazia*/
+            if ((!receber.TipoPagamento.Equals("Promissória", StringComparison.InvariantCultureIgnoreCase)
+               && !receber.TipoPagamento.Equals("dinheiro", StringComparison.InvariantCultureIgnoreCase)) 
+               && !listaCaixa.Any())
+            {
+                statusMensagem.ShowModal("Erro", $"O recebimento do tipo {receber.TipoPagamento} é executado em um caixa banco e o usuário não possui caixa banco aberto!");
+            }
+            else if (x is null && listaCaixa.Any())
+            {
+                statusMensagem.ShowModal("Erro", "O usuário não possui caixa aberto");
+            }
+            else
+            {
+                await recebimento.ShowModalRecebimento(id_recebimento, usuario);
+            }
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Um erro ao tentar abrir o recebimento da parcela");
+        }
+    }
+
+    protected ModalRecebimento recebimento = new ModalRecebimento();
+    protected async Task ConfirmarRecebimento(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                statusMensagem.ShowModal("Recebimento", "Recebimento realizado com sucesso!");
+                //ListaRecebimentos2 = _recebimentoController.ListarTodos();
+                receber.StatusRecebimento = "fechado";
+                ListaRecebimentos2 = await _recebimentoController.ListarTodosAwait(funcionario.Fk_id_empresa);
+                ListaRecebimentos = ListaRecebimentos2.Where(x => x.StatusRecebimento.ToLower() == "fechado").OrderByDescending(x => x.DataPagamento).ThenByDescending(x => x.HoraPagamento).ToList();
+                tipoC = "Fechadas";
+                receber.DataPagamento = DateOnly.FromDateTime(DateTime.Now);
+            }
+            else
+            {
+                //statusMensagem.ShowModal("Erro", "Erro ao realizar o recebimento! ");
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao realizar o recebimento! " + ex.Message);
+        }
+        //Selecionar("Fechadas");
+    }
+
+    protected async Task ExibirmodalAvulso()
+    {
+        try
+        {
+            List<Caixa> listaCaixa = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+            listaCaixa = listaCaixa.Where(x => x.Status.Equals("aberto", StringComparison.InvariantCultureIgnoreCase)
+                && x.Tipo.Equals("banco", StringComparison.InvariantCultureIgnoreCase)).ToList();
+            Caixa? x = await _caixaController.BuscarOperacionalAbertoFuncionario(usuario.Id_funcionario);
+
+            if (x != null || !listaCaixa.Any())
+            {
+                await receberAvulso.ShowModalRecebimento(funcionario.Fk_id_empresa, usuario);
+            }
+            else
+            {
+                statusMensagem.ShowModal("Erro", "Usuário não possui caixa aberto!");
+            }
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Um erro ao tentar abrir o recebimento da parcela");
+        }
+    }
+
+    /*Acho que não está sendo usado*/
+    protected  async Task ConfirmarAvulso(bool confirm)
+    {
+        if (confirm)
+        {
+            try
+            {
+                statusMensagem.ShowModal("Recebimento", "Recebimento realizado com sucesso!");
+                ListaRecebimentos2 = await _recebimentoController.ListarTodosAwait(funcionario.Fk_id_empresa);
+                ListaRecebimentos = ListaRecebimentos2.Where(x => x.StatusRecebimento.ToLower() == "fechado").OrderByDescending(x => x.DataPagamento).ThenByDescending(x => x.HoraPagamento).ToList();
+                tipoC = "Fechadas";
+            }
+            catch (Exception ex)
+            {
+                statusMensagem.ShowModal("Erro", "Erro ao receber o valor da parcela " + ex.Message);
+            }
+            //Selecionar("Fechadas");
+        }
+        else
+        {
+            //statusMensagem.ShowModal("Erro", "Erro ao receber o valor avulso!");
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm){}
+
+    protected void Selecionar(string tipoC)
+    {
+        this.tipoC = tipoC;
+        Filtrar();
+    }
+
+    public void FecharModal()
+    {
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalEstorno");
+    }
+
+    public void ShowModalEstorno(int id_recebimento)
+    {
+        try
+        {
+            recEstorno = ListaRecebimentos2.FirstOrDefault(x => x.Id_recebimento == id_recebimento);
+
+            JSRuntime.InvokeAsync<string>("modal.showModal", "modalEstorno");
+
+        }catch(Exception ex)
+        {
+
+        }
+    }
+
+    private async Task Estorno()
+    {
+        Caixa cx_estorno = await _caixaController.BuscarId(recEstorno.Fk_id_caixa);
+        if (cx_estorno.Status.ToLower() == "fechado")
+        {
+            FecharModal();
+            statusMensagem.ShowModal("Atenção", "O caixa do recebimento está fechado, é necessário reabrir o mesmo para cancelar o recebimento!");
+        }
+        else if (usuario.Id_funcionario == recEstorno.CaixaRecebimento?.Fk_id_funcionario)
+        {
+            if (recEstorno.StatusRecebimento.ToLower() == "fechado")
+            {
+                try
+                {
+                    FecharModal();
+                    if(recEstorno.Fk_id_venda > 0)
+                    {
+                        await _recebimentoController.EstornoParcela(recEstorno);
+                        recEstorno.StatusRecebimento = "Aberto";
+                        //ListaRecebimentos2 = _recebimentoController.ListarTodos();
+                        ListaRecebimentos = ListaRecebimentos2.Where(x => x.StatusRecebimento.ToLower() == "aberto").ToList();
+                        tipoC = "Abertas";
+                        statusMensagem.ShowModal("Cancelamento", "Recebimento cancelado com sucesso!");
+                    }
+                    else
+                    {
+                        await _recebimentoController.ExcluirAvulto(recEstorno);
+                        ListaRecebimentos2.Remove(recEstorno);
+                        ListaRecebimentos = ListaRecebimentos2.Where(x => x.StatusRecebimento.ToLower() == "aberto").ToList();
+                        tipoC = "Abertas";
+                        statusMensagem.ShowModal("Cancelamento", "Recebimento cancelado com sucesso!");
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    FecharModal();
+                    statusMensagem.ShowModal("Erro", "Erro ao cancelar o recebimento " + ex.Message);
+                }
+            }
+        }
+        else
+        {
+            FecharModal();
+            statusMensagem.ShowModal("Atenção", "O estorno de um recebimento só pode ser realizado pelo usuário que realizou o recebimento!");
+        }
+}
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await JSRuntime.InvokeAsync<IJSObjectReference>(
+                  "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                //mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        try
+        {
+            if (jsModule is not null)
+            {
+                await jsModule.DisposeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+
+
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+<ModalRecebimento @ref="@recebimento" UserChouse="ConfirmarRecebimento" />
+<RecebimentoAvulso @ref="@receberAvulso" UserChouse="ConfirmarRecebimento" />
+
+
+
+<div class="modal fade show" id="modalEstorno" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Cancelar o Recebimento</h5>
+                <button type="button" @onclick='eventArgs=>FecharModal()' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>
+                    Tem certeza que deseja cancelar o recebimento?
+                </p>
+
+            </div>
+            <div class="modal-footer">                
+                <button type="button" class="btn btn-primary" @onclick='() =>FecharModal()'>Não</button>
+                <button type="button" class="btn btn-danger" @onclick='() =>Estorno()'>Sim</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+

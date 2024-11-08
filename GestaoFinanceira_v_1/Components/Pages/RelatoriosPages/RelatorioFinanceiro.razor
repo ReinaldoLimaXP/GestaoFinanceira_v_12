@@ -1,0 +1,152 @@
+﻿@page "/relatorios/relfinanceiro"
+@using System.ComponentModel.DataAnnotations;
+@using System.ComponentModel.DataAnnotations.Schema
+@using GestaoFinanceira_v_1.Components.Shared
+@using GestaoFinanceira_v_1.Utilitarios
+@inject CaixaController _caixas
+@inject FuncionarioController _funcionarioController
+@inject PlanoContasController _planoController
+@inject HttpClient http
+@inject NavigationManager nav
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime 
+@implements IAsyncDisposable
+
+<script>
+    function NovaGuia(url) {
+        window.open(url, '_blank');
+    }
+</script>
+<div>
+    <div class="col-md-8">
+        <h2><b>Relatórios Financeiro</b></h2>
+        <h4>Preencha os dados para a emissão do relatório.</h4>
+        <hr />
+        <EditForm Model="@e" OnValidSubmit="Emitir" FormName="Cad_venda">
+                <DataAnnotationsValidator />
+            <strong>Período *</strong>
+            <hr />
+            <div class="row">
+                <div class="form-group col-md-6">
+                    <label>Data Início *: </label>
+                    <InputDate id="dataVenda" @bind-Value="e.DataInicio" class="form-control" />
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Data Final *: </label>
+                    <InputDate id="horaVenda" @bind-Value="e.DataFim" class="form-control" />
+                </div>
+            </div>
+            <br />
+            <strong>Tipo de Operação*: </strong>
+            <hr />
+            <div class="row">
+                <InputRadioGroup @onblur="Filtrar" Name="formaPag" @bind-Value="e.Tipo">
+                    @foreach (var categoria in Operacoes)
+                    {
+                        <div class="form-group col-md-4">
+                            <InputRadio @onblur="Filtrar" class="form-check-input cursorpointer" id="@categoria" Value="categoria" />
+                            <label class="cursorpointer" for="@categoria">@categoria.ToString()</label>
+                        </div>
+                    }
+                </InputRadioGroup>
+            </div>
+            <br />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <strong>Plano de Contas : </strong>
+                    <InputSelect @bind-Value="e.Fk_id_planoConta" id="formato" class="form-select">
+                        <option value="">Selecionar</option>
+                        @foreach (PlanoDeContas p in planos)
+                        {
+                            <option value="@p.Id_planoConta">@p.Codigo  &nbsp @p.Descricao</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+            <br />
+            <div class="row">
+                <div class="form-group col-md-12">
+                    <a href="/relatorios">
+                        <button type="button" class="btn btn-danger">
+                            Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                        </button>
+                    </a>
+                    <button type="submit" style="float:right" class="btn btn-secondary">
+                        Emitir &nbsp <i class="bi bi-file-earmark-text"></i>
+                    </button>
+                </div>
+            </div>
+        </EditForm>
+    </div>
+
+</div>
+@code {
+    RelFin e = new RelFin();
+    private List<string> Operacoes { get; set; } = new List<string>() { "Todos", "Receitas", "Despesas" };
+    List<PlanoDeContas> planos = new List<PlanoDeContas>();
+    List<PlanoDeContas> planosT = new List<PlanoDeContas>();
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            e.Tipo = "Todos";
+            planos = await _planoController.ListarPlanosawait();
+            planosT = planos;
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao listar os planos de conta");
+        }
+    }
+
+    public async Task Emitir()
+    {
+        ImpressaoCaixa imprimir = new ImpressaoCaixa();
+        var relatorio = await _caixas.ListarCaixaPorPeriodo(e.DataInicio, e.DataFim);
+        var planoSelc = planosT.Where(p => p.Id_planoConta == e.Fk_id_planoConta).FirstOrDefault();
+        string? tipoFiltro=null;
+        if(planoSelc!=null)
+                tipoFiltro = planoSelc.Codigo+" "+planoSelc.Descricao;
+        Console.WriteLine("TIPO: " + tipoFiltro); 
+        await imprimir.GerarRelatorioFinanceiro(relatorio, nav, JSRuntime, e.DataInicio, e.DataFim, tipoFiltro);
+    }
+
+    public void Filtrar()
+    {
+        if (e.Tipo == "Despesas")
+        {
+            planos = planosT.Where(x => x.NaturezaConta.ToLower() == "débito").ToList();
+        }
+        else if (e.Tipo == "Receitas")
+        {
+            planos = planosT.Where(x => x.NaturezaConta.ToLower() == "crédito").ToList();
+        }
+        else
+        {
+            planos = planosT;
+        }
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+    internal class RelFin
+    {
+        [Required]
+        public DateOnly DataInicio { get; set; }
+        [Required]
+        public DateOnly DataFim { get; set; }
+
+        public string? Tipo { get; set; }
+
+        public int? Fk_id_planoConta{ get; set; } 
+    }
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

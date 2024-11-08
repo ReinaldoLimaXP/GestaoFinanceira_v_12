@@ -1,0 +1,235 @@
+﻿@page "/vendas/recibo/{id_venda:int}"
+@using GestaoFinanceira_v_1.Utilitarios;
+@inject VendaController _vendaController
+@rendermode InteractiveServer
+@inject NavigationManager nav
+@inject IJSRuntime JSRuntime
+@attribute [Authorize]
+
+<script>
+	function NovaGuia(url) {
+		window.open(url, '_blank');
+	}
+</script>
+
+
+<div class="input-group col-md-12">
+	<div class="form-group col-md-3">
+		<img src="imagens/sistema/gestaoFinanceirav1.0.jpeg" class="ImgRecibo" />
+	</div>
+	<div class="form-group col-md-7">
+		<label><strong>@venda.Empresa.Nome_fantasia</strong></label>
+		<label>@venda.Empresa.Razao_social - @venda.Empresa.Cnpj</label>
+		<label>Endereço: @venda.Empresa.Endereco.Logradouro, Nº @venda.Empresa.Endereco.Numero, CEP @venda.Empresa.Endereco.Cep, 
+			@venda.Empresa.Endereco.Cidade.Nome_cid/@venda.Empresa.Endereco.Cidade.Estado.Uf_est</label>
+		<label>Telefone: @venda.Empresa.Telefone1 -  E-mail: @venda.Empresa.Email</label>
+	</div>
+	<div class="form-group col-md-2">
+		<button style="z-index:0;" @onclick="Imprimir" class="btn btn-secondary">Imprimir &nbsp <i class="bi bi-printer-fill"></i></button>
+	</div>
+</div>
+<br />
+<div class="Recibo d-flex justify-content-center">
+	<h2><strong>Recibo Nº @venda.Id_venda</strong></h2>
+</div>
+<br />
+<strong>Dados da Venda</strong>
+<hr />
+<div class="input-group col-md-12">
+	<div class="form-group col-md-1">
+		<label>ID: *</label>
+		<!--<div class="col-sm-2">-->
+		<InputNumber disabled id="id_venda" class="form-control" placeholder="" @bind-Value="venda.Id_venda" />
+	</div>
+	&nbsp  &nbsp &nbsp 
+	<div class="form-group col-md-2">
+		<label>Data: </label>
+		<InputDate disabled id="dataVenda" @bind-Value="venda.DataVenda" class="form-control" />
+	</div>
+	&nbsp  &nbsp &nbsp 
+	<div class="form-group col-md-1">
+		<label>Hora: </label>
+		<InputText disabled id="horaVenda" @bind-Value="venda.Hora" class="form-control" />
+	</div>
+	&nbsp  &nbsp &nbsp 
+	<div class="form-group col-md-4">
+		<label>Vistoriador Responsável: </label>
+		<InputText disabled id="horaVenda" @bind-Value="venda.Vistoriador.Nome_completo" class="form-control" />
+	</div>
+	&nbsp  &nbsp &nbsp 
+	<div class="form-group col-md-3">
+		<label>Atendente: </label>
+		<InputText disabled id="horaVenda" @bind-Value="venda.FuncionarioVendedor.Nome_completo" class="form-control" />
+	</div>
+</div>
+<br />
+<strong>Cliente</strong>
+<hr />
+<div class="input-group col-md-12">
+	<div class="form-group col-md-2">
+		<label>CPF/CNPJ: </label>
+		<InputText disabled id="dataVenda" @bind-Value="cpf_cnpj" class="form-control" />
+	</div>
+	&nbsp  &nbsp &nbsp
+	<div class="form-group col-md-4">
+		<label>Nome/Razão Social: </label>
+		<InputText disabled id="dataVenda" @bind-Value="clienteVenda" class="form-control" />
+	</div>
+	&nbsp  &nbsp &nbsp &nbsp &nbsp
+	<div class="form-group col-md-3">
+		<label>Veículo: </label>
+		<InputText disabled id="modelo" @bind-Value="modelo_vei" class="form-control" />
+	</div>
+	&nbsp  &nbsp &nbsp
+	<div class="form-group col-md-2">
+		<label>Placa: </label>
+		<InputText disabled id="placa" @bind-Value="PlacaVeiculo" class="form-control" />
+	</div>
+</div>
+<br />
+<strong>Serviços</strong>
+<hr class="hrsemEspaco"/>
+<table class="table table-sm table-responsive-sm col-md-12">
+	<thead>
+		<tr>
+			<th>Serviço</th>
+			<th>Quantidade</th>
+			<th>Valor Unitário</th>
+			<th>Valor Total</th>
+		</tr>
+	</thead>
+	<tbody>
+		@foreach (ItemVenda servicoV in venda.ItensVenda)
+		{
+			<tr>
+				<td>@servicoV.Servico.Nome_ser</td>
+				<td>@servicoV.Quantidade</td>
+				<td>@servicoV.ValorUnitario.ToString("C2")</td>
+				<td>@servicoV.ValorTotalItens.ToString("C2") </td>
+			</tr>
+		}
+	</tbody>
+</table>
+
+<div style="display: flex;">
+	<div class="form-left col-md-7">
+		<div class="input-group col-md-7">
+			<strong>Sistema de Recebimentos</strong>
+			<hr />
+			</div>
+		<div class="input-group col-md-7">
+			<div class="form-group col-md-3">
+				<label>Forma: </label>
+				<InputText disabled id="horaVenda" @bind-Value="venda.FormaPagamento" class="form-control" />
+			</div>
+			&nbsp  &nbsp 
+			<div class="form-group col-md-3">
+				<label>Tipo: </label>
+				<InputText disabled id="horaVenda" @bind-Value="venda.TipoPagamento" class="form-control" />
+			</div>
+			&nbsp  &nbsp 
+			<div class="form-group col-md-3">
+				<label>Parcelamento: </label>
+				<InputText disabled id="horaVenda" @bind-Value="venda.TotalParcelas" class="form-control" />
+			</div>
+		</div>
+		<br />
+		<div class="input-group col-md-5">
+			<div class="form-group col-md-3">
+				<label>Encargo Bancário: </label>
+				<InputText disabled id="horaVenda" @bind-Value="encargo" class="form-control" />
+			</div>
+			&nbsp  &nbsp &nbsp
+			<div class="form-group col-md-6">
+				<label>Observações: </label>
+				<InputText disabled id="horaVenda" @bind-Value="venda.Observacoes" class="form-control" />
+			</div>
+		</div>
+	</div>
+
+	<div class="form-right col-md-5">
+		<div class="input-group col-md-5 d-flex flex-row-reverse">
+			<div class="col-md-5">
+				<label> SubTotal: </label>
+				<InputText disabled id="valorTotalVenda" @bind-Value="ValorTotal" class="form-control" />
+			</div>
+		</div>
+		<div class="d-flex flex-row-reverse">
+			<div class="col-md-5">
+				<label> Desconto: </label>
+				<InputText disabled id="valorTotalVenda" @bind-Value="Desconto" class="form-control" />
+			</div>
+
+		</div>
+		<div class="d-flex flex-row-reverse">
+			<div class="col-md-5">
+				<label> Total: </label>
+				<InputText disabled id="valorTotalVenda" @bind-Value="ValorFinal" class="form-control" />
+			</div>
+
+		</div>
+	</div>
+</div>
+<br />
+@code {
+	[Parameter]
+	public int? id_venda { get; set; }
+	Venda venda = new Venda();
+	string ValorTotal, ValorFinal, Desconto, veiculoVinculado, PlacaVeiculo, modelo_vei, clienteVenda, cpf_cnpj, encargo;
+	protected override async Task OnInitializedAsync()
+	{
+		try
+		{
+			venda = await _vendaController.BuscarId(id_venda);
+			ValorTotal = venda.ValorTotal.ToString("C2");
+			ValorFinal = venda.ValorFinal.ToString("C2");
+			Desconto = venda.Desconto.ToString("C2");
+			Recebimento rec = new Recebimento();
+			rec = venda.RecebimentoLista.FirstOrDefault();
+			if (rec.DispositivoRec is not null)
+			{
+				encargo = rec.DispositivoRec.Descricao;
+			}
+			if (venda.Cliente is ClientePF)
+			{
+				ClientePF cc = venda.Cliente as ClientePF;
+				clienteVenda = cc.Nome_cli;
+				cpf_cnpj = cc.Cpf_cli;
+			}
+			else if (venda.Cliente is ClientePJ)
+			{
+				ClientePJ cc = venda.Cliente as ClientePJ;
+				clienteVenda = cc.RazaoSocial_PJ;
+				cpf_cnpj = cc.CNPJ_PJ;
+			}
+
+			if(venda.Veiculo is not null)
+			{
+				PlacaVeiculo = venda.Veiculo.Placa_vei;
+				modelo_vei = venda.Veiculo.Modelo_vei;
+			}
+
+		}catch(Exception ex){
+
+		}
+
+	}
+
+	public void Imprimir()
+	{
+		try{
+			List<Venda> vendas = new List<Venda>();
+			vendas.Add(venda);
+			//Console.WriteLine("Valor: " + venda.ValorTotal);
+			ImpressaoVendas imprimir = new ImpressaoVendas();
+			imprimir.GerarRecibo(vendas, venda.ItensVenda, nav, JSRuntime);
+		}catch(Exception ex)
+		{
+			statusMensagem.ShowModal("Erro!", "Erro ao gerar o relatório " + ex.Message);
+		}
+	}
+
+	protected StatusMensagem statusMensagem = new StatusMensagem();
+	protected void ConfirmarMensagem(bool confirm) { }
+}
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

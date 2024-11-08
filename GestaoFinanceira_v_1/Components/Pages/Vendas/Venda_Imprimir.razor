@@ -1,0 +1,148 @@
+﻿@page "/vendas/imprimir/{id_venda:int}"
+@inject VendaController _vendaController
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<h2><b>Ver Venda</b></h2>
+<h4>Veja os dados e clique nas opções disponíveis</h4>
+
+<EditForm Model="@vendaDetalhes" OnValidSubmit="@Imprimir">
+	<DataAnnotationsValidator />
+	<div class="input-group col-md-12">
+		<div class="form-group col-md-2">
+			<label>ID: </label>
+			<InputNumber  placeholder="" disabled class="form-control" @bind-Value="vendaDetalhes.Id_venda" />
+		</div>
+		&nbsp   &nbsp  &nbsp
+		<div class="form-group col-md-2">
+			<label>Data: </label>
+			<InputDate placeholder="" disabled class="form-control" @bind-Value="vendaDetalhes.DataVenda" />
+		</div>
+		&nbsp   &nbsp  &nbsp
+		<div class="form-group col-md-1">
+			<label>Hora: </label>
+			<InputText  placeholder="" disabled class="form-control" @bind-Value="vendaDetalhes.Hora" />
+		</div>
+		&nbsp   &nbsp  &nbsp
+		<div class="form-group col-md-5">
+			<label>Vistoriador: </label>
+			<InputText  placeholder="" disabled class="form-control" @bind-Value="vendaDetalhes.Vistoriador.Nome_completo" />
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-12">
+		<div class="form-group col-md-9">
+			<label>Cliente: </label>
+			<InputText placeholder="" disabled class="form-control" @bind-Value="clienteVenda" />
+		</div>
+	</div>
+	<br />
+	<div class="input-group col-md-12">
+		<div class="form-group col-md-3">
+			<label>Veículo Vinculado: </label>
+			<InputText placeholder="" disabled class="form-control" @bind-Value="veiculoVinculado" />
+		</div>
+		&nbsp   &nbsp  &nbsp
+		<div class="form-group col-md-7">
+			<label>Veículo Vinculado: </label>
+			<InputText placeholder="" disabled class="form-control" @bind-Value="DescricaoVeiculo" />
+		</div>
+	</div>
+</EditForm>
+<hr />
+<table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Serviço</th>
+                <th>Quantidade</th>
+                <th>Valor Unitário</th>
+                <th>Valor Total</th>
+            </tr>
+        </thead>
+        <tbody>
+		@foreach (ItemVenda servicoV in vendaDetalhes.ItensVenda)
+            {
+				<tr>
+					<td>@servicoV.Id_ItemVenda</td>
+					<td>@servicoV.Servico.Nome_ser</td>
+					<td>@servicoV.Quantidade</td>
+					<td>@servicoV.ValorUnitario</td>
+					<td>@servicoV.ValorTotalItens</td>
+				</tr>
+			}
+		</tbody>
+</table>
+<br />
+<div class="d-flex flex-row-reverse">
+	<div class="col-md-2">
+		<label> SubTotal: </label>
+		<InputText disabled id="valorTotalVenda" @bind-Value="ValorTotal" class="form-control" />
+	</div>
+
+</div>
+<div class="d-flex flex-row-reverse">
+	<div class="col-md-2">
+		<label> SubTotal: </label>
+		<InputText disabled id="valorTotalVenda" @bind-Value="Desconto" class="form-control" />
+	</div>
+</div>
+<div class="d-flex flex-row-reverse">
+	<div class="col-md-2">
+		<label> SubTotal: </label>
+		<InputText disabled id="valorTotalVenda" @bind-Value="ValorFinal" class="form-control" />
+	</div>
+</div>
+
+<br />
+<div class="form-group">
+	<a href="/vendas">
+		<button type="button" class="btn btn-danger bi bi-searche">
+			Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+		</button>
+	</a>
+
+	<!--<input type="submit" value="Cadastrar"  class="btn btn-success create bi bi-search"/>-->
+
+
+</div>
+<br />
+@code{
+	[Parameter]
+	public int id_venda { get; set; }
+
+	string ValorTotal, ValorFinal, Desconto, veiculoVinculado, DescricaoVeiculo, clienteVenda;
+
+	Venda vendaDetalhes = new Venda();
+
+	protected override async Task OnInitializedAsync()
+	{
+		vendaDetalhes = await _vendaController.BuscarId(id_venda);
+		ValorTotal = vendaDetalhes.ValorTotal.ToString("C2");
+		ValorFinal = vendaDetalhes.ValorFinal.ToString("C2");
+		Desconto = vendaDetalhes.Desconto.ToString("C2");
+		if(vendaDetalhes.Veiculo == null)
+		{
+			veiculoVinculado = "Não";
+		}
+		else
+		{
+			veiculoVinculado = "Sim";
+			DescricaoVeiculo = vendaDetalhes.Veiculo.Modelo_vei + " - " + vendaDetalhes.Veiculo.Placa_vei;
+		}
+		if(vendaDetalhes.Cliente is ClientePF)
+		{
+			ClientePF cc = vendaDetalhes.Cliente as ClientePF;
+			clienteVenda = cc.Nome_cli;
+		}
+		else if(vendaDetalhes.Cliente is ClientePJ)
+		{
+			ClientePJ cc = vendaDetalhes.Cliente as ClientePJ;
+			clienteVenda = cc.RazaoSocial_PJ;
+		}
+	}
+
+	public void Imprimir(){
+
+	}
+}

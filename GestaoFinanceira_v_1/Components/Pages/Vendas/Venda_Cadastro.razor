@@ -1,0 +1,965 @@
+﻿@page "/vendas/cadastro"
+@using System.Globalization;
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using GestaoFinanceira_v_1.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject HttpClient http
+@inject ClientePFsController _clientePFsController
+@inject ClientePJsController _clientePJsController
+@inject ServicoController _servicoController
+@inject VeiculoController _veiculoController
+@inject FuncionarioController _funcionariosController
+@inject CaixaController _caixaController
+@inject VendaController _vendaController
+@inject DispositivoController _dispositivoController
+@inject EmpresaController _empresaController
+@inject PlanoContasController _planoController
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<div class="">
+	<h2><b>Vender Serviços</b></h2>
+	<h4>Cadastre uma venda e mantenha seus dados atualizados</h4>
+	<hr class="hrsemEspaco"/>
+	<EditForm Model="@venda" OnValidSubmit="ShowModalPagamento" FormName="Cad_venda">
+		<ObjectGraphDataAnnotationsValidator />
+		<div class="row">
+			<div class="form-group col-md-2">
+				<label>ID: *</label>
+				<!--<div class="col-sm-2">-->
+				<InputNumber disabled id="id_venda" class="form-control" placeholder="" @bind-Value="venda.Id_venda" />
+			</div>			
+			<div class="form-group col-md-2">
+				<label>Data: </label>
+				<InputDate disabled id="dataVenda" @bind-Value="venda.DataVenda" class="form-control" />
+			</div>			
+			<div class="form-group col-md-1">
+				<label>Hora: </label>
+				<InputText disabled id="horaVenda" @bind-Value="venda.Hora" class="form-control" />
+			</div>
+			<div class="form-group col-md-3">
+			</div>
+			<div class="form-group col-md-2">
+				<label>Caixa: </label>
+				<InputNumber disabled @bind-Value="caixaOperacionalVenda.Id_caixa" class="form-select" />
+			</div>
+			<div class="form-group col-md-2">
+				<label>Status: *</label>
+				<!--<div class="col-sm-2">-->
+				<InputText disabled id="status" class="form-control" placeholder="" @bind-Value="caixaOperacionalVenda.Status" />
+			</div>
+		</div>
+		<br />
+		<div class="row">
+			<div class="form-group col-md-4">
+				<label>Cliente: </label>
+				<InputSelect @bind-Value="venda.Fk_id_cliente" class="form-select" @onclick="SelecionarVeiculos">
+					<option value="">--Selecionar--</option>
+					@if (clientesList != null)
+					{
+						@foreach (Cliente cliente in clientesList)
+						{
+							@if (cliente is ClientePF)
+							{
+								ClientePF pf = cliente as ClientePF;
+								<option value="@pf.Id_cliente"> @pf.Nome_cli - @pf.Cpf_cli</option>
+							}
+							else if (cliente is ClientePJ)
+							{
+								ClientePJ pj = cliente as ClientePJ;
+								<option value="@pj.Id_cliente"> @pj.RazaoSocial_PJ - @pj.CNPJ_PJ</option>
+							}
+						}
+					}
+				</InputSelect>
+			</div>
+
+			<div class="form-group col-md-4">
+				<label>Veículo </label>
+				<InputSelect id="vinculo" @bind-Value="venda.Fk_id_veiculo" class="form-select">
+					<option value="">--Selecionar--</option>
+					@if (VeiculoListSelecionado != null)
+					{
+						@foreach (Veiculo v in VeiculoListSelecionado)
+						{
+							<option value="@v.Id_veiculo"> @v.Modelo_vei</option>
+						}
+					}
+				</InputSelect>
+			</div>
+
+			<div class="form-group col-md-4">
+				<label>Vistóriador Responsável *: </label>
+				<InputSelect @bind-Value="venda.Fk_id_vistoriador" id="funcionario" class="form-select">
+					<option value="">Selecionar</option>
+					@if (Listafuncionarios != null)
+					{
+						@foreach (Funcionario f in Listafuncionarios)
+						{
+							<option value="@f.Id_funcionario"> @f.Nome_completo</option>
+						}
+					}
+				</InputSelect>
+			</div>
+
+		</div>
+		<br />
+		<hr class="hrsemEspaco" />
+		<div class="row">
+			<div class="form-group col-md-5">
+				<label>Serviço: </label>
+				<InputSelect @bind-Value="Id_servicoSelecionado" class="form-select"
+							 @onclick="@ServicoSelecionado">
+					<option value="0">--Selecionar--</option>
+					@if (ServicosList != null)
+					{
+						@foreach (Servico s in ServicosList)
+						{
+							<option value="@s.Id_servico"> @s.Nome_ser</option>
+						}
+					}
+				</InputSelect>
+			</div>
+
+			<div class="form-group col-md-1">
+				<br />
+				<button type="button" class="btn btn-secondary" @onblur="ServicoSelecionado">
+					<i class="bi bi-search"></i>
+				</button>
+			</div>
+
+			<div class="form-group col-md-1">
+				<label> Quantidade: </label>
+				<InputNumber id="quantidade" @bind-Value="quantidade" class="form-control" @onblur="ServicoSelecionado" />
+			</div>
+
+			<div class="form-group col-md-2">
+				<label> Valor Unitário: </label>
+				<InputText disabled id="valorUnitario" @bind-Value="valorSugeridoServico" class="form-control" />
+			</div>
+
+			<div class="form-group col-md-2">
+				<label> Valor Total: </label>
+				<InputText disabled id="valorTotal" @bind-Value="valorTotal" class="form-control" />
+			</div>
+
+			<div class="form-group col-md-1">
+				<br />
+				<button type="button" class="btn btn-secondary" @onclick="@AdicionarServico">
+					<img src="imagens/sistema/plus.png" width="28px" />
+				</button>
+			</div>
+		</div>
+
+		<br />
+		<table class="table table-sm table-responsive-sm">
+			<thead>
+				<tr>
+					<th>Serviço</th>
+					<th>Quantidade</th>
+					<th>Valor Unitário</th>
+					<th>Valor Total</th>
+					<th><label style="float:right;">Opções</label></th>
+				</tr>
+			</thead>
+			<tbody>
+				@foreach (ItemVenda servicoV in venda.ItensVenda)
+				{
+					<tr>
+						<td>@servicoV.Servico.Nome_ser</td>
+						<td>@servicoV.Quantidade</td>
+						<td>@servicoV.ValorUnitario.ToString("C2")</td>
+						<td>@servicoV.ValorTotalItens.ToString("C2") </td>
+						<td>
+							<button style="float:right;" type="button" class="btn btn-danger" @onclick='() => ExibirmodalExcluirItem(servicoV)'><i class="bi bi-trash3-fill"></i></button>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+
+		<div class="d-flex flex-row-reverse">
+			<div class="col-md-2">
+				<label> SubTotal: </label>
+				<InputText disabled id="valorTotalVenda" @bind-Value="ValorTotalVenda" class="form-control" />
+			</div>
+
+		</div>
+		<div class="d-flex flex-row-reverse">
+			<div class="col-md-2">
+				<label> Desconto: </label>
+				<InputSelect id="desconto" @bind-Value="venda.Desconto" class="form-select" @onclick="AplicarDesconto">
+					<option value="0">0 %</option>
+					<option value="1">1 %</option>
+					<option value="2">2 %</option>
+					<option value="3">3 %</option>
+					<option value="4">4 %</option>
+					<option value="5">5 %</option>
+					<option value="6">6 %</option>
+					<option value="7">7 %</option>
+					<option value="8">8 %</option>
+					<option value="9">9 %</option>
+					<option value="10">10 %</option>
+					<option value="10">10 %</option>
+					<option value="11">11 %</option>
+					<option value="12">12 %</option>
+					<option value="13">13 %</option>
+					<option value="14">14 %</option>
+					<option value="15">15 %</option>
+					<option value="16">16 %</option>
+					<option value="17">17 %</option>
+					<option value="18">18 %</option>
+					<option value="19">19 %</option>
+					<option value="20">20 %</option>
+					<option value="21">21 %</option>
+					<option value="22">22 %</option>
+					<option value="23">23 %</option>
+					<option value="24">24 %</option>
+					<option value="25">25 %</option>
+				</InputSelect>
+			</div>
+		</div>
+		<div class="d-flex flex-row-reverse">
+			<div class="col-md-2">
+				<label> Total: </label>
+				<InputText disabled id="VendaComDesconto" @bind-Value="ValorFinalVenda" class="form-control" />
+			</div>
+		</div>
+		<br />
+
+		<div class="form-group">
+			<a href="/vendas">
+				<button type="button" class="btn btn-danger">
+					Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+				</button>
+			</a>
+			<button type="submit" style="float:right" class="btn btn-success">
+				Vender &nbsp <i class="fa fa-save"></i>
+			</button>
+		</div>
+	</EditForm>
+
+	<br />
+	<hr class="hrsemEspaco" />
+</div><!--Fim do container-->
+
+@code {
+
+	/*Instância que irá registrar a venda*/
+	[SupplyParameterFromForm]
+	public Venda? venda { get; set; }
+
+	/*Responsável por identificar o caixa da venda, será
+		* verificado se há caixa aberto para o usuário.
+		*/
+	private Caixa caixaOperacionalVenda = new Caixa();
+
+	/*Vou tentar usar no recebimento*/
+	private Recebimento RecebimentoVenda = new Recebimento();
+
+	/*Responsável para adicionar um item na venda*/
+	private Servico servicoSelecionado = new Servico();
+	/*
+	* Id_servicoSelecionado é uma varial local para identicar qual serviço foi selecionado no combobox
+	* quantidade é uma variável local para armazenar quantos serviços foi realizado, será vinculada a quantidade do ItemVenda
+	*/
+	private int Id_servicoSelecionado = 0, quantidade = 1;
+	private int? Id_dispositivoSelecionado;
+	//Essas duas string são para apresentar os dados com duas casas decimais, com ImputNumber não deu certo até agora.
+	string? valorTotal, valorSugeridoServico, ValorTotalVenda, ValorFinalVenda;
+
+	List<ClientePF> clientesPFList { get; set; } = new List<ClientePF>();
+	List<ClientePJ> clientePJsList { get; set; } = new List<ClientePJ>();
+	List<Cliente> clientesList { get; set; } = new List<Cliente>();
+
+	List<Servico> ServicosList { get; set; } = new List<Servico>();
+	List<Veiculo> VeiculoListSelecionado { get; set; } = new List<Veiculo>();
+	List<Veiculo> VeiculosListTodos { get; set; } = new List<Veiculo>();
+	//List<ItemVenda> servicosVenda { get; set; } = new List<ItemVenda>();
+	public List<Funcionario> Listafuncionarios { get; set; } = new List<Funcionario>();
+	ApplicationUser? usuario = new ApplicationUser();
+
+	List<Recebimento> RecebimentosParcelas { get; set; } = new List<Recebimento>();
+	List<Dispositivo> ListDispositivos = new List<Dispositivo>();
+	List<Caixa> caixasAbertoBanco = new List<Caixa>();
+	string teste;
+	Funcionario funcionarioVendedor = new Funcionario();
+	protected override async Task OnInitializedAsync()
+	{
+		venda = new Venda { ItensVenda = new List<ItemVenda>() };
+		try
+		{
+			/*Pegar o funcionário logado*/
+			string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+			if (string.IsNullOrEmpty(IdLogado))
+			{
+				throw new Exception("Usuário não encontrado.");
+			}
+			usuario = await UserManager.FindByIdAsync(IdLogado);			
+			funcionarioVendedor = _funcionariosController.BuscarID(usuario.Id_funcionario);
+
+			if (funcionarioVendedor == null)
+			{
+				throw new Exception("Funcionário não encontrado.");
+			}
+
+			caixasAbertoBanco = await _caixaController.ListarAbertoUsuario(usuario.Id_funcionario,funcionarioVendedor.Fk_id_empresa);
+			caixasAbertoBanco = caixasAbertoBanco.Where(x => x.Status.Equals("aberto", StringComparison.InvariantCultureIgnoreCase) 
+				&& x.Tipo.Equals("banco", StringComparison.InvariantCultureIgnoreCase)).ToList();
+			Caixa cx = await _caixaController.BuscarOperacionalAbertoFuncionario(usuario.Id_funcionario);
+			if (!caixasAbertoBanco.Any() && cx is null)
+			{
+				NavigationManager.NavigateTo("/vendas");
+			}
+			else
+			{
+				//Colocar alguns await ainda
+				if(!caixasAbertoBanco.Any()){
+					statusMensagem.ShowModal("Atenção", "Você não possui caixa banco aberto!");
+				}
+				if(cx is null)
+				{
+					caixaOperacionalVenda = new Caixa();
+					statusMensagem.ShowModal("Atenção", "Você não possui caixa operacional aberto!");
+				}
+				else
+				{
+					//Verificar o porque sem essa linha está dando erro;
+					venda.Fk_id_caixa = cx.Id_caixa;
+					caixaOperacionalVenda = cx;
+				}				
+				Listafuncionarios = _funcionariosController.ListarFuncionarios().Where(x => x.Funcao_fun.Nome_funcao.Equals("vistoriador (a)", StringComparison.InvariantCultureIgnoreCase)).ToList();
+				venda.ValorFinal = 0;
+				venda.Desconto = 0.0;
+				ServicosList = _servicoController.ListarTodos();
+				VeiculoListSelecionado = _veiculoController.listarVeiculos();
+				VeiculosListTodos = VeiculoListSelecionado;
+				clientesPFList = await _clientePFsController.listarTodos();
+				clientePJsList = await _clientePJsController.listarTodos();
+				clientesList = new List<Cliente>();
+				clientesList.AddRange(clientesPFList);
+				clientesList.AddRange(clientePJsList);
+			}
+		}
+		catch (Exception ex)
+		{
+			statusMensagem.ShowModal("Erro", "Erro ao carregar a página de venda " + ex.Message);
+		}
+	}
+
+	private async Task RegistrarVenda()
+	{
+		try
+		{
+			this.GerarParcelas();
+			if (!double.TryParse(ValorFinalVenda.Replace("R", "").Replace("$", ""), out double valorFinal))
+			{
+				await statusMensagem.ShowModalAwait("Erro", "Valor final da venda inválido.");
+				return;
+			}
+			venda.Fk_id_funcionario = usuario?.Id_funcionario;
+			venda.RecebimentoLista.AddRange(RecebimentosParcelas);
+			venda.TotalParcelas = venda.RecebimentoLista.Count.ToString();
+
+			//Empresa empresaVendedora = await _empresaController.BuscarId(funcionarioVendedor.Empresa_fun.Id_empresa);
+			venda.Fk_id_empresa = funcionarioVendedor.Empresa_fun.Id_empresa;
+			if(Id_dispositivoSelecionado > 0){
+				venda.PorcentagemAliquota = DispositoVenda.Alicota;
+			}
+			venda.TipoPagamento = TipoPagamentoSelecionado;
+			//venda.Fk_id_caixa = caixaVenda.Id_caixa;
+			int a = await _vendaController.SalvarTransaction(venda, Id_dispositivoSelecionado);
+
+			FecharModalPag();
+			if(a > 0)
+			{
+				NavigationManager.NavigateTo("vendas/recibo/" + a);
+			}
+			else
+			{
+				await statusMensagem.ShowModalAwait("Erro", "Erro ao cadastrar a venda");
+			}
+
+		}
+		catch (Exception ex)
+		{
+			teste = ex.Message;
+			FecharModalPag();
+			await statusMensagem.ShowModalAwait("Erro", "Erro ao cadastrar a venda" + ex.Message);
+		}
+	}
+
+	private void AdicionarServico()
+	{
+		try
+		{
+			if (servicoSelecionado.Id_servico > 0)
+			{
+				ItemVenda itVenda = new ItemVenda();
+				itVenda.Servico = servicoSelecionado;
+				itVenda.Quantidade = quantidade;
+				itVenda.ValorUnitario = servicoSelecionado.ValorSugerido_ser;
+				itVenda.ValorTotalItens = quantidade * itVenda.ValorUnitario;
+				venda.ItensVenda.Add(itVenda);
+
+				venda.ValorTotal += itVenda.ValorTotalItens;
+				ValorTotalVenda = venda.ValorTotal.ToString("C2");
+				quantidade = 1;
+				AplicarDesconto();
+			}
+		}
+		catch (Exception)
+		{
+			MensagemModal("Erro", "Ocorreu um erro inesperado ao adicionar o item na venda!");
+		}
+	}
+
+	private void ServicoSelecionado()
+	{
+		if (Id_servicoSelecionado != 0)
+		{
+			servicoSelecionado = ServicosList.First(x => x.Id_servico == Id_servicoSelecionado);
+			valorSugeridoServico = servicoSelecionado.ValorSugerido_ser.ToString("C2");
+			valorTotal = (servicoSelecionado.ValorSugerido_ser * quantidade).ToString("C2");
+		}
+		else
+		{
+			servicoSelecionado = new Servico();
+			servicoSelecionado.ValorSugerido_ser = Id_servicoSelecionado;
+		}
+
+	}
+
+	private void AplicarDesconto()
+	{
+		try
+		{
+			if (!string.IsNullOrEmpty(ValorTotalVenda))
+			{
+				double valorTotalVendaD = double.Parse(ValorTotalVenda.Replace("R", "").Replace("$", ""));
+				ValorFinalVenda = (valorTotalVendaD - (valorTotalVendaD * venda.Desconto / 100)).ToString("C2");
+			}
+		}
+		catch (Exception ex)
+		{
+
+		}
+
+	}
+
+	private void SelecionarVeiculos()
+	{
+		/*Esse if é para evitar realizar a seleção sem cliente selecionado*/
+		try
+		{
+			if (venda.Fk_id_cliente > 0 || venda.Fk_id_cliente is not null)
+			{
+				VeiculoListSelecionado = VeiculosListTodos.Where(x => x.Fk_id_cliente == venda.Fk_id_cliente).ToList();
+			}
+			else
+			{
+				VeiculoListSelecionado = VeiculosListTodos;
+			}
+		}
+		catch (Exception ex)
+		{
+			statusMensagem.ShowModal("Erro!", "Erro ao selecionar os veículos do cliente!");
+		}
+
+	}
+
+	protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+	private ItemVenda ItemRemover = new ItemVenda();
+	public void ExibirmodalExcluirItem(ItemVenda itemVenda)
+	{
+		try
+		{
+			ItemRemover = itemVenda;
+			confirmar.ShowModalConfirmacao("Você tem certeza que deseja remover o item da venda ?");
+		}
+		catch (Exception)
+		{
+			//await JSRuntime.InvokeAsync<string>("modal.showModal", elementoID);
+		}
+	}
+
+	/*
+		* Método responsável por excluir um item da lista de itens da venda.
+		*/
+	protected void ConfirmarExclusao(bool confirm)
+	{
+		try
+		{
+			if (confirm)
+			{
+				/*Colocando esse if apenas para evitar passar sem item para excluir*/
+				if (ItemRemover.ValorTotalItens > 0)
+				{
+					venda.ItensVenda.Remove(ItemRemover);
+					venda.ValorTotal -= ItemRemover.ValorTotalItens;
+					ValorTotalVenda = venda.ValorTotal.ToString("C2");
+					AplicarDesconto();
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			MensagemModal("Erro", "Ocorreu um erro inesperado ao excluir o serviço!");
+
+		}
+	}
+
+	protected StatusMensagem statusMensagem = new StatusMensagem();
+	protected void MensagemModal(string titulo, string mensagem)
+	{
+		statusMensagem.ShowModal(titulo, mensagem);
+	}
+
+	/*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+		* Pode ser usado para receber retornos
+		*/
+	protected void ConfirmarMensagem(bool confirm) { }
+
+	//private string? FormaPagSelecionado = "vista";//verificar se vai criar uma classe
+	private List<string> FormasPag { get; set; } = new List<string>() { "Vista", "Prazo" };
+	private List<string> EmisaoLista { get; set; } = new List<string>() { "Nota Fiscal", "Recibo" };
+	private List<string> Tipopag { get; set; } = new List<string> {
+		"Dinheiro","Cartão Débito","Pix","Cartão Crédito","Boleto","Promissória" };
+	protected bool IsDisabled { get; set; } = true;
+	private string? TipoPagamentoSelecionado { get; set; } = "Dinheiro";
+	private int TotalParcelas { get; set; }
+	Dispositivo DispositoVenda { get; set; } = new Dispositivo();
+
+	public void ShowModalPagamento()
+	{
+		if (venda.ItensVenda.Any())
+		{
+			this.GerarParcelas();
+			//RecebimentosParcelas[0].StatusRecebimento = "Aberto";
+			JSRuntime.InvokeAsync<string>("modal.showModal", "ModalPagamento");
+			ListDispositivos = _dispositivoController.ListarTodosAtivo();
+			DispositoVenda = new Dispositivo();
+			venda.ValorFinal = double.Parse(ValorFinalVenda.Replace("R", "").Replace("$", ""));
+			venda.Emisao = "Nota Fiscal";
+		}
+		else
+		{
+			statusMensagem.ShowModal("Atenção", "É necessário possuir serviços para realizar a venda!");
+		}
+	}
+
+	public void GerarParcelas()
+	{
+		RecebimentosParcelas.Clear();
+		if (venda.FormaPagamento == "Prazo")
+		{
+			try{
+				double valorParcela = double.Parse(ValorFinalVenda.Replace("R", "").Replace("$", "")) / TotalParcelas;
+				double ValorAlicota = valorParcela * DispositoVenda.Alicota / 100;
+				for (int i = 0; i < TotalParcelas; i++)
+				{
+					Recebimento rec = new Recebimento();
+					rec.Nparcela = i + 1;
+					rec.Fk_id_caixa = venda.Fk_id_caixa;
+					rec.TipoPagamento = TipoPagamentoSelecionado;
+					rec.StatusRecebimento = "Aberto";
+					rec.ValorParcela = valorParcela;
+					rec.DataVencimento = venda.DataVenda.AddMonths(i + 1);
+					rec.Fk_id_empresa = funcionarioVendedor.Fk_id_empresa;
+					rec.AliquotaParcela = ValorAlicota.ToString("F");
+					if (DispositoVenda.Id_dispositivo > 0)
+					{
+						rec.Fk_id_dispositivo_rec = DispositoVenda.Id_dispositivo;
+					}
+					//rec.DispositivoRec = ListDispositivos.FirstOrDefault(x => x.Id_dispositivo == DispositoVenda.Id_dispositivo);
+					rec.Fk_id_plano = _planoController.BuscarDescricai("Vendas a Prazo").Id_planoConta;
+					RecebimentosParcelas.Add(rec);
+				}
+			}catch(Exception ex)
+			{
+				throw new Exception(ex.Message);
+			}
+		}
+		else if (venda.FormaPagamento == "Vista")
+		{
+			Recebimento rec = new Recebimento()
+				{
+					Fk_id_caixa = venda.Fk_id_caixa,
+					Nparcela = 1,
+					StatusRecebimento = "Fechado",
+					TipoPagamento = TipoPagamentoSelecionado,
+					DataVencimento = venda.DataVenda,
+					DataPagamento = venda.DataVenda,
+					HoraPagamento = DateTime.Now.TimeOfDay,
+					Fk_id_empresa = funcionarioVendedor.Fk_id_empresa,
+					AliquotaParcela = (venda.ValorFinal * DispositoVenda.Alicota / 100).ToString("F"),
+					ValorParcela = Convert.ToDouble(ValorFinalVenda.Replace("R", "").Replace("$", "")),
+					DispositivoRec = ListDispositivos.FirstOrDefault(x => x.Id_dispositivo == DispositoVenda.Id_dispositivo),
+					Fk_id_plano = _planoController.BuscarDescricai("Venda a Vista").Id_planoConta
+				};
+			RecebimentosParcelas.Clear();
+			RecebimentosParcelas.Add(rec);
+			TotalParcelas = 1;
+			venda.FormaPagamento = "Vista";
+		}
+		venda.TotalParcelas = RecebimentosParcelas.Count.ToString();
+	}
+
+	private void SelecionarDispositivo()
+	{
+		if (Id_dispositivoSelecionado > 0)
+		{
+			DispositoVenda = ListDispositivos.FirstOrDefault(x => x.Id_dispositivo == Id_dispositivoSelecionado);
+			DispositoVenda.Alicota = Math.Round(DispositoVenda.Alicota, 2);
+			venda.ValorAlicota = (DispositoVenda.Alicota * venda.ValorFinal / 100).ToString("C2");
+		}
+		else
+		{
+			//Id_dispositivoSelecionado = 0;
+			DispositoVenda = new Dispositivo();
+			DispositoVenda.Alicota = 0.00;
+			venda.ValorAlicota = "R$ 0.00";
+		}
+	}
+
+	private void ZerarDispositivo()
+	{
+		Id_dispositivoSelecionado = 0;
+		SelecionarDispositivo();
+	}
+
+	public void SelecionarFormaPag()
+	{
+		//Id_dispositivoSelecionado = 0;
+		SelecionarDispositivo();
+		if (venda.FormaPagamento == "Vista")
+		{
+			TipoPagamentoSelecionado = "Dinheiro";
+		}
+		else
+		{
+			TipoPagamentoSelecionado = "Cartão Crédito";
+			GerarParcelas();
+		}
+	}
+
+	public void CaixaOperacional(){
+		venda.Fk_id_caixa = caixaOperacionalVenda.Id_caixa;
+	}
+
+	public void FecharModalPag()
+	{
+		JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "ModalPagamento");
+	}
+	private IJSObjectReference? jsModule;
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			try
+			{
+				jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+					"import", "/script/modal.js");
+			}
+			catch (Exception ex)
+			{
+				// mensagem = "Erro ao carregar as máscaras " + ex.Message;
+				//await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+			}
+
+		}
+	}
+
+	async ValueTask IAsyncDisposable.DisposeAsync()
+	{
+		if (jsModule is not null)
+		{
+			await jsModule.DisposeAsync();
+		}
+	}
+
+
+}
+
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+
+
+
+
+<!--Modal de pagamento-->
+<div class="modal fade show" id="ModalPagamento" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header" style="background-color: #898686;">
+				<h4 class="modal-title text-white">
+					<strong>
+						&nbsp   &nbsp  Recebimento da Venda  @Id_dispositivoSelecionado
+					</strong>
+				</h4>
+				<button type="button" @onclick='eventArgs=>FecharModalPag()' class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				<EditForm Model="venda" method="post" OnValidSubmit="RegistrarVenda">
+					<div class="row">
+						<div class="form-group col-md-8">
+							<strong>Dados da Venda</strong>
+						</div>
+						<div class="form-group col-md-3">
+							<strong>Dados do Caixa</strong>
+						</div>
+					</div>
+					<hr class="hrsemEspaco" />
+					<div class="row">
+						<div class="form-group col-md-2">
+							<label>ID: *</label>
+							<!--<div class="col-sm-2">-->
+							<InputNumber disabled id="id_venda" class="form-control form-control" placeholder="" @bind-Value="venda.Id_venda" />
+						</div>
+	
+						<div class="form-group col-md-2">
+							<label>Data: </label>
+							<InputDate disabled id="dataVenda" @bind-Value="venda.DataVenda" class="form-control form-control" />
+						</div>
+
+						<div class="form-group col-md-2">
+							<label>Hora: </label>
+							<InputText disabled @bind-Value="venda.Hora" class="form-control form-control" />
+						</div>
+						<div class="form-group col-md-2">
+						</div>
+						<!--Melhorar essa parte posteriormente-->
+						<div class="form-group col-md-4">
+							<label>Caixa: </label>
+							<InputSelect required id="vinculo" @bind-Value="venda.Fk_id_caixa" class="form-select">
+								@if (TipoPagamentoSelecionado != "Dinheiro" && TipoPagamentoSelecionado != "Promissória")
+							{		
+								<option value="">Selecionar</option>
+								@if (caixasAbertoBanco != null)
+								{
+									@foreach (Caixa cx in caixasAbertoBanco)
+									{
+										<option value="@cx.Id_caixa"> @cx.Id_caixa - @cx.BancoCaixa?.Descricao</option>
+									}
+								}
+							}else{
+								if (caixaOperacionalVenda.Id_caixa > 0)
+								{
+									CaixaOperacional();
+									<option value="@caixaOperacionalVenda.Id_caixa"> @caixaOperacionalVenda.Id_caixa - @caixaOperacionalVenda.Tipo</option>
+								}	
+								else{
+									<option value="">Selecionar</option>
+								}
+							}
+							</InputSelect>
+						</div>
+					</div>
+					<br />
+					<strong>Forma de Recebimento</strong>
+					<hr class="hrsemEspaco" />
+
+					<div class="input-group col-md-12">
+						<div class="form-group col-md-1">
+							<label><strong>Forma *</strong></label>
+							<br />
+							<InputRadioGroup @onblur="SelecionarFormaPag" Name="formaPag" @bind-Value="venda.FormaPagamento">
+								@foreach (string formaP in FormasPag)
+								{
+									<InputRadio @onblur="SelecionarFormaPag" class="form-check-input cursorpointer" id="@formaP" Value="formaP" />
+									<label class="cursorpointer" for="@formaP">@formaP</label>
+									<br />
+								}
+							</InputRadioGroup>
+						</div>
+						&nbsp &nbsp &nbsp &nbsp
+
+						<div class="form-group col-md-5">
+							<label><strong>Tipo *</strong></label>
+							<br />
+							@if (venda.FormaPagamento == "Vista")
+							{
+								<InputRadioGroup required Name=" tipopag" @bind-Value="TipoPagamentoSelecionado">
+									<InputRadio class="form-check-input cursorpointer" id="dinheiro" Value="Tipopag[0]" /> <label class="cursorpointer" for="dinheiro">&nbsp @Tipopag[0] &nbsp</label>  &nbsp
+									<InputRadio class="form-check-input cursorpointer" id="debito" Value="Tipopag[1]" /> <label class="cursorpointer" for="debito">&nbsp @Tipopag[1]</label>
+									<br />
+									<InputRadio class="form-check-input cursorpointer" id="pix" Value="Tipopag[2]" /> <label class="cursorpointer" for="pix">&nbsp @Tipopag[2] &nbsp</label>  &nbsp &nbsp  &nbsp &nbsp &nbsp
+								</InputRadioGroup>
+							}
+							else
+							{
+								<InputRadioGroup required Name="tipopag" @bind-Value="TipoPagamentoSelecionado">
+									<InputRadio class="form-check-input cursorpointer" id="credito" Value="Tipopag[3]" /> <label class="cursorpointer" for="credito">&nbsp  @Tipopag[3] &nbsp</label>  &nbsp
+									<InputRadio class="form-check-input cursorpointer" id="boleto" Value="Tipopag[4]" /> <label class="cursorpointer" for="boleto">&nbsp  @Tipopag[4] </label>
+									<br />
+									<InputRadio class="form-check-input cursorpointer" id="promi" Value="Tipopag[5]" /> <label class="cursorpointer" for="promi"> &nbsp @Tipopag[5]</label> &nbsp  &nbsp
+								</InputRadioGroup>
+							}
+						</div>
+						<div class="form-group col-md-2">
+							@if (venda.FormaPagamento == "Prazo")
+							{
+								<label><strong>Parcelamento</strong></label>
+								<InputSelect @bind-Value="TotalParcelas" @onclick="()=> GerarParcelas()" class="form-select">
+									<option value="1">01x</option>
+									<option value="2">02x</option>
+									<option value="3">03x	</option>
+									<option value="4">04x	</option>
+									<option value="5">05x	</option>
+									<option value="6">06x	</option>
+									<option value="7">07x	</option>
+									<option value="8">08x	</option>
+									<option value="9">09x	</option>
+									<option value="10">10x	</option>
+									<option value="11">11x	</option>
+									<option value="12">12x	</option>
+								</InputSelect>
+							}
+						</div>
+						&nbsp &nbsp &nbsp &nbsp
+						<div class="form-group col-md-3">
+							<label><strong>Emissão de NF: *</strong></label>
+							<br />		
+							<InputRadioGroup required Name="Emissao" @bind-Value="venda.Emisao">
+								@foreach (string em in EmisaoLista)
+								{
+									<InputRadio class="form-check-input cursorpointer" id="@em" Value="em" />
+									<label class="cursorpointer" for="@em">&nbsp @em</label>
+									<br />
+								}
+							</InputRadioGroup>
+						</div>
+					</div>
+					<br />
+					<div class="input-group col-md-12">
+						@if (venda.FormaPagamento == "Vista")
+						{
+							<div class="form-group col-md-12">
+								<strong>Valor de Recebimento</strong>
+								<hr class="hrsemEspaco"/>
+								<div class="form-group col-md-3">
+									<InputText disabled id="valorFinalVenda" @bind-Value="ValorFinalVenda" class="form-control" />
+								</div>
+								<br />
+							</div>
+						}
+						else if (venda.FormaPagamento == "Prazo")
+						{
+							<div class="form-group col-md-12">
+								<strong>Parcelas</strong>
+								<hr class="hrsemEspaco" />
+								<table class="table table-sm table-responsive-sm">
+									<thead>
+										<tr>
+											<th>Parcela</th>
+											<th>Vencimento</th>
+											<th>Valor</th>
+											<th>Status</th>
+										</tr>
+									</thead>
+									<tbody>
+										@foreach (Recebimento recebimento in RecebimentosParcelas)
+										{
+											<tr>
+												<td>@recebimento.Nparcela/@TotalParcelas</td>
+												<td>@recebimento.DataVencimento</td>
+												<td>@recebimento.ValorParcela.ToString("C2")</td>
+												@if (@recebimento.StatusRecebimento == "Aberto")
+												{
+													<td class="text-danger"><strong>@recebimento.StatusRecebimento</strong></td>
+												}
+												else
+												{
+													<td class="text-success">@recebimento.StatusRecebimento</td>
+												}
+
+											</tr>
+										}
+									</tbody>
+								</table>
+							</div>
+						}
+					</div>
+
+
+					<div class="input-group col-md-12">
+						<div class="form-group col-md-5">
+							<strong>Observações</strong>
+							<hr class="hrsemEspaco"/>
+						</div>
+						&nbsp   &nbsp  &nbsp &nbsp
+						<div class="form-group col-md-5">
+							<strong>Encargos Bancários</strong>
+							<hr class="hrsemEspaco" />
+						</div>
+					</div>
+
+					<div class="input-group col-md-12">
+						<div class="form-group col-md-5">
+							<InputTextArea @bind-Value="venda.Observacoes" rows="4" Cols="35"></InputTextArea>
+						</div>
+						&nbsp &nbsp
+						<div class="form-group col-md-3">
+
+							<label>Tipo/Dispositivo:</label>
+							@if (TipoPagamentoSelecionado == "Cartão Débito" || TipoPagamentoSelecionado == "Cartão Crédito" || TipoPagamentoSelecionado == "Boleto")
+							{
+								<InputSelect required @onclick="SelecionarDispositivo" id="vinculo" @bind-Value="Id_dispositivoSelecionado" class="form-select">
+									<option value="">Selecionar</option>
+									@if (ListDispositivos != null)
+									{
+										@foreach (Dispositivo dis in ListDispositivos)
+										{
+											<option value="@dis.Id_dispositivo"> @dis.Descricao</option>
+										}
+									}
+								</InputSelect>
+							}
+							else
+							{
+								<!--Não lembro o porque chamava o método SelecionarFormaPag aqui-->
+								ZerarDispositivo();
+								<InputSelect disabled @onclick="SelecionarDispositivo" id="vinculo" @bind-Value="Id_dispositivoSelecionado" class="form-select">
+									<option value="0">Selecionar</option>									
+								</InputSelect>
+							}
+							<br />
+							<button type="button" @onclick='eventArgs=>FecharModalPag()' class="btn btn-danger">
+								Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+							</button>
+						</div>
+						&nbsp &nbsp
+						<div class="form-group col-md-1">
+							<label>Alíquota:</label>
+							<InputNumber disabled id="porcentagemaliquota" @bind-Value="DispositoVenda.Alicota" class="form-control" />
+						</div>
+						&nbsp &nbsp
+
+						<div class="form-group col-md-2">
+							<label>Valor:</label>
+							<InputText disabled id="valoraliquota" @bind-Value="venda.ValorAlicota" class="form-control" />
+							<br />
+
+							<button type="submit" style="float:right" class="btn btn-success">
+								Finalizar &nbsp <i class="fa fa-save"></i>
+							</button>
+
+						</div>
+
+					</div>
+				</EditForm>
+			</div>
+		</div>
+	</div>
+</div>

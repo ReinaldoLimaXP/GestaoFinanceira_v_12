@@ -1,0 +1,146 @@
+﻿@page "/pagamentoDetalhe/{id_despesa:int}"
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject CaixaController _caixaController
+@inject NavigationManager NavigationManager
+@inject DespesaController _controllerDespesas
+@inject FuncionarioController _funcionariosController
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@attribute [Authorize]
+
+<h2><b>Ver Pagamento</b></h2>
+<h4>Cadastre um novo pagamento e mantenha seus dados atualizados</h4>
+
+<EditForm Model="despesa" method="post" OnValidSubmit="Imprimir" FormName="form_servico">
+    <DataAnnotationsValidator />
+
+    <div class="row">
+        <div class="col-md-8">
+            <label class="fw-bold">Dados da Despesa</label>
+            <hr />
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-2">
+            <label>Código</label>
+            <InputNumber disabled type="text" class="form-control" @bind-Value="despesa.Id_despesa" />
+        </div>
+        <div class="col-md-2">
+            <label>Data:</label>
+            <InputDate disabled id="dataDespesa" @bind-Value="despesa.Datalacamento" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label>Fornecedor</label>
+            <InputText disabled type="text" class="form-control" @bind-Value="despesa.FornecedorDespesa.Nome_fantasia" />
+        </div>
+    </div>
+
+    <br />
+
+    <div class="row">
+        <div class="col-md-8">
+            <label>Descrição</label>
+            <InputText disabled type="text" class="form-control" @bind-Value="despesa.Descricao" />
+        </div>
+    </div>
+
+    <br />
+
+    <div class="row">
+        <div class="col-md-2">
+            <label>Valor</label>
+            <InputText disabled type="text" class="form-control" @bind-Value="ValorDespesa" />
+        </div>
+        <div class="col-md-2">
+            <label>Vencimento</label>
+            <InputDate disabled id="dataDespesa" @bind-Value="despesa.Vencimento" class="form-control" />
+        </div>
+    </div>
+
+    <br />
+
+    <div class="row">
+        <div class="col-md-8">
+            <label class="fw-bold">Dados do Recebimento</label>
+            <hr />
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-2">
+            <label>Caixa</label>
+            <InputNumber disabled type="text" class="form-control" @bind-Value="despesa.Fk_id_caixa" />
+        </div>
+        <div class="col-md-2">
+            <label>Tipo do Caixa:</label>
+            <InputText disabled class="form-control" @bind-Value="despesa.CaixaPagamento.Tipo" />
+        </div>
+        <div class="col-md-2">
+            <label>Plano de Contas</label>
+            <InputText disabled type="text" class="form-control" @bind-Value="despesa.PlanoPag.Descricao" />
+        </div>
+        <div class="col-md-2">
+            <label>Forma de Pagamento</label>
+            <InputText disabled type="text" class="form-control" @bind-Value="despesa.TipoPagamento" />
+        </div>
+    </div>
+    <br />
+    <div class="row">
+        <div class="col-md-8">
+            <label>Observação do Pagamento</label>
+            <InputText disabled type="text" class="form-control" @bind-Value="despesa.Observacao" />
+        </div>
+    </div>
+    <br />
+
+    <div class="row">
+        <div class="col-md-4 text-start">
+            <a href="pagamentos">
+                <button type="button" class="btn btn-danger">
+                    Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                </button>
+            </a>
+        </div>
+        <!--
+        <div class="col-md-4 text-end">
+            <button class="btn btn-secondary">Imprimir</button>
+        </div>
+        -->
+    </div>
+</EditForm>
+
+
+@code{
+    [Parameter]
+    public int id_despesa { get; set; }
+    Despesa despesa = new Despesa();
+    string ValorDespesa;
+    protected override async Task OnInitializedAsync()
+    {
+        despesa.CaixaPagamento = new Caixa();
+        despesa.PlanoPag = new PlanoDeContas();
+        despesa = _controllerDespesas.BuscarId(id_despesa);
+        ValorDespesa = despesa.Valor.ToString("F2");
+    }
+	public void Imprimir()
+	{
+
+	}
+
+	private IJSObjectReference? jsModule;
+	async ValueTask IAsyncDisposable.DisposeAsync()
+	{
+		if (jsModule is not null)
+		{
+			await jsModule.DisposeAsync();
+		}
+	}
+}

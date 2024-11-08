@@ -1,0 +1,511 @@
+﻿@page "/funcionario/cadastro"
+@inject NavigationManager NavigationManager
+@inject HttpClient http
+@using GestaoFinanceira_v_1.Utilitarios
+@using Newtonsoft.Json
+@inject EstadosController controleEstado
+@inject CidadesController controleCidade
+@inject EmpresaController _controllerEmpresa
+@inject FuncionarioController _controllerFuncionario
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@rendermode InteractiveServer
+
+
+
+<h2><b>Cadastro de Funcionários</b></h2>
+<h4>Cadastre um novo funcionário e mantenha seus dados atualizados</h4>
+<hr/>
+<EditForm Model="@funcionario" OnValidSubmit="@Cadastrar" FormName="Cad_funcionario">
+    <ObjectGraphDataAnnotationsValidator />
+     <!--Inicio do div dos forms e da imagem-->
+     <div class="input-group">
+         <!--Inicio do div dos forms-->
+         <div  class="col-md-10">
+             <!--Inicio do div dos imputs CPF e nome-->
+            <div class="input-group col-md-12">
+                <div class="form-group col-md-3">
+                <label>CPF: *</label>
+                    <!--<div class="col-sm-2">-->
+                    <InputText id="cpfCliente" class="form-control" placeholder="000.000.000-00" @bind-Value="funcionario.Cpf" @onblur="ValidarCPF" />
+                    <label class="text-danger">@label</label>                  
+                </div>
+                 &nbsp &nbsp &nbsp  
+                <div class="form-group col-md-5">
+                    <label>Nome: *</label>
+                    <InputText id="nomeFuncionario" type="text" class="form-control" @bind-Value="funcionario.Nome_completo"/>
+                </div>
+
+                <!--Colocar empresas-->
+                &nbsp   &nbsp  &nbsp 
+                <div class="form-group col-md-3">
+                    <label>Empresa: </label>
+                    <InputSelect @bind-Value="funcionario.Fk_id_empresa" class="form-select">
+                        <option value="0">--Selecionar--</option>
+                        @if (listaEmpresas != null)
+                        {
+                            @foreach (Empresa empre in listaEmpresas)
+                            {
+                                <option value="@empre.Id_empresa"> @empre.Nome_fantasia </option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
+              
+            </div><!--Fim do div dos imputs CPF e nome-->
+            
+            <!--Inicio do div dos imputs RG, data de nascimento e sexo-->
+            <div class="input-group col-md-12">        
+                <div class="form-group col-md-2">
+                    <label>RG: </label>
+                    <InputText id="rg" @bind-Value="funcionario.Rg" class="form-control"/>
+                </div>
+                 &nbsp  &nbsp   &nbsp
+                <div class="form-group col-md-2">
+                    <label>Orgão Emissor: </label>
+                    <InputText id="orgaoEmirssor" @bind-Value="funcionario.OrgaoEmissor" class="form-control"/>
+                </div> 
+                &nbsp  &nbsp   &nbsp &nbsp
+                <div class="form-group">
+                    <label>Data de Nascimento: </label>
+                    <InputDate id="dataNasc" @bind-Value="funcionario.DataNascimento" class="form-control"/>
+                </div>
+                &nbsp   &nbsp    &nbsp &nbsp
+                <div class="form-group col-md-2">
+                    <label>Sexo: *</label>
+                    <InputSelect @bind-Value="funcionario.Sexo" class="form-select">
+                          <option value="">--Selecionar--</option>
+                          <option value="Masculino">Masculino</option>
+                          <option value="Feminino">Feminino</option>
+                    </InputSelect>
+                </div>
+                
+                &nbsp   &nbsp    &nbsp &nbsp
+                <div class="form-group col-md-2">
+                    <label>Estado Civil: </label>
+                    <InputSelect @bind-Value="funcionario.EstadoCivil" class="form-select">
+                          <option value="">--Selecionar--</option>
+                          <option value="solteiro">Solteiro (a)</option>
+                          <option value="casado">Casado (a) </option>
+                           <option value="viuvo">Viúvo (a) </option>
+                    </InputSelect>
+                </div>
+
+            </div><!--Fim do div dos imputs RG, data de nascimento e sexo-->
+        </div><!--Fim do div dos forms-->
+        <div>
+            <div class="form-group col-md-2">
+                <div class="imageContainer">
+                    <img id='imgCliente' @onclick="@FotoCarregarr" src="@imagem" width="120px" height="120px" />
+                </div>
+                <InputFile type="file" OnChange="LoadFiles" id="fImage" accept="image/png, image/jpeg, image/gif" />
+            </div>
+        </div>
+    </div><!--Fim do div dos forms e da imagem-->
+     <br />
+    <div class="row">
+        <div class="form-group col-md-3">
+            <label>Função: </label>
+            <InputSelect @bind-Value="funcionario.Fk_id_funcao" class="form-select">
+                <option value="0">--Selecionar--</option>
+                @if (listaFuncao != null)
+                {
+                    @foreach (Funcao f in listaFuncao)
+                    {
+                        <option value="@f.Id_funcao"> @f.Nome_funcao </option>
+                    }
+                }
+            </InputSelect>
+        </div>
+        <div class="form-group col-md-2">
+                <label>Data de Contratação: </label>
+                <InputDate id="dataContratacao" @bind-Value="funcionario.DataContratacao" class="form-control"/>
+            </div>
+        <div class="form-group col-md-2">
+            <label>Data de Dispensa: </label>
+            <InputDate id="dataDispensa" @bind-Value="funcionario.DataDispensa" class="form-control"/>
+        </div>
+        <div class="form-group col-md-2">
+            <label>Renumeração: </label>                
+            <InputText onkeyup="moedaFormat(this);" id="renumeracao" placeholder=" Ex. R$ 100,00"
+                    @bind-Value="renumeracao" class="form-control" />
+        </div>
+        <div class="form-group col-md-3">
+            <label>Situação: </label>
+            <InputSelect @bind-Value="funcionario.Situacao" class="form-select">
+                    <option value="">--Selecionar--</option>
+                    <option value="casado">Ativo</option>
+                    <option value="solteiro">Inativo</option>
+            </InputSelect>
+        </div>
+    </div>
+    <hr/>
+     <div class="row">
+        <div class="form-group col-md-2">
+            <label> CEP: *</label>
+            <InputText id="cep"   @bind-Value="funcionario.Endereco_fun.Cep" class="form-control" />
+         </div>
+         <div class="form-group col-md-1">
+             <br />
+            <button style="z-index:0;"  type="button" class="btn btn-secondary"   @onclick='BuscarLocalidade'>
+             <i class="bi bi-search"></i>  
+            </button>
+         </div>
+         <div class="form-group col-md-6">
+            <label> Logradouro: *</label>
+             <InputText id="logradouro" @bind-Value="funcionario.Endereco_fun.Logradouro" class="form-control"/>
+         </div>
+ 
+         <div class="form-group col-md-3">
+            <label> Número: *</label>               
+             <InputText id="numero"  @bind-Value="funcionario.Endereco_fun.Numero" class="form-control"/>
+         </div>
+     </div>
+     <br />
+      <div class="row">
+          <div class="form-group col-md-4"> 
+              <label>Bairro: *</label>
+                <InputText id="bairro" @bind-Value="funcionario.Endereco_fun.Bairro" class="form-control"/>
+           </div>
+           <div class="form-group col-md-4">  
+               <label> Estado: </label>
+                <InputSelect @bind-Value="id_estadoSelecionado" @onblur="@SelecionarCidades"  class="form-select">
+                    <!--Preencher do banco posteriormente-->
+                    <option value="0">--Selecionar--</option>
+                @if(estadosList != null)
+                {
+                    @foreach(Estado e in estadosList)
+                    {
+                        <option value="@e.Id_estado"> @e.Uf_est </option>
+                    }  
+                }
+                
+            </InputSelect>
+           </div>
+           <div class="form-group col-md-4">
+                <label> Cidade: *</label>
+                <InputSelect @bind-Value="funcionario.Endereco_fun.Fk_id_cidades" class="form-select">
+                    <!--Preencher do banco posteriormente-->
+                      <option value="0">--Selecionar--</option>
+                      @if(cidadesList == null)
+                        {
+                            <option value="0"> nenhuma cidade </option>
+                        }
+                        else
+                        {
+                          @foreach(Cidade cid in cidadesCelecionadas)
+                            {
+                                <option value="@cid.Id_cidade"> @cid.Nome_cid </option>
+                            }  
+                        }
+                </InputSelect>
+           </div>
+      </div>
+     <hr />
+     <div class="row">
+          <div class="form-group col-md-4"> 
+              <label>Celular: *</label>
+                <InputText id="celularTel"  data-mask="(00) 9 0000-0000" @bind-Value="funcionario.Celular" class="form-control"/>
+           </div>
+         <div class="form-group col-md-4">
+              <label>Casa: </label>
+            <InputText id="telCasa" @bind-Value="funcionario.Tel_casa" class="form-control" />
+          </div>
+
+          <div class="form-group col-md-4"> 
+               <label>Observações: </label>
+              <InputText id="Observacao" @bind-Value="funcionario.Observacoes" class="form-control"/>
+          </div>
+     </div>
+    <hr />
+    <div class="row">
+        <div class="form-group col-md-6"> 
+            <label>Email Pessoal: </label>
+            <InputText type="email" id="emailPessoal" @bind-Value="funcionario.Email_pessoal" class="form-control"/>
+        </div>
+        <div class="form-group col-md-6">
+            <label>Email Profissional: </label>
+            <InputText  type="email" id="emailProfissional" @bind-Value="funcionario.Email_profissional" class="form-control"/>
+        </div>
+    </div>
+     <br />
+    <div class="form-group">
+        <a href="/funcionarios">
+            <button  type="button" class="btn btn-danger bi bi-searche">
+                Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+            </button>
+        </a>
+        <div class="float-end">
+            <button type="submit" class="btn btn-success create"> 
+                Salvar &nbsp <i class="fa fa-save"></i>
+            </button>
+        </div>
+    </div>
+     <br />
+     <br />
+</EditForm>
+
+
+
+
+@code {
+    int id_estadoSelecionado;
+    //int id_empresaFun, id_funcao = 0;
+    private string renumeracao = "0,00";
+    //Cidade cidadeSelecionada;
+    string imagem = "imagensClientes/camera.png";
+    IReadOnlyList<IBrowserFile>? arquivoSelecionados = null;
+    private Funcionario funcionario = new Funcionario();
+
+    List<Estado>? estadosList { get; set; }
+
+    List<Cidade>? cidadesList { get; set; }
+
+    List<Cidade>? cidadesCelecionadas{ get; set; }
+    List<Empresa>? listaEmpresas{ get; set; }
+    List<Funcao>? listaFuncao{ get; set; }
+
+    string mensagem = "";
+
+    private IJSObjectReference? jsModule;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            //cidadeSelecionada = new Cidade();
+            estadosList = await controleEstado.listarTodosawait();
+            cidadesList = await controleCidade.ListarTodosawait();
+            listaEmpresas = _controllerEmpresa.listarTodos();
+            listaFuncao = _controllerFuncionario.ListarFuncoes();
+            cidadesCelecionadas = cidadesList;
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao carregar a página de funcionário " + ex.Message);
+        }
+
+    }
+
+    private async Task SelecionarCidades()
+    {
+        if(id_estadoSelecionado != 0)
+        {
+            cidadesCelecionadas =  cidadesList.Where(x => x.Estado.Id_estado == id_estadoSelecionado).ToList();
+        }
+        else
+        {
+            cidadesCelecionadas = cidadesList;
+        }
+
+    }
+
+    private void Cadastrar()
+    {
+        mensagem = "";
+        try
+        {
+            funcionario.Renumeracao = double.Parse(renumeracao);
+            funcionario.Foto = imagem;
+            //funcionario.Endereco_fun.Cidade = cidadesList.FirstOrDefault(x => x.Id_cidade == funcionario.Endereco_fun.Fk_id_cidades);
+            //funcionario.Funcao_fun = listaFuncao.FirstOrDefault(x => x.Id_funcao == id_funcao);
+            //funcionario.Empresa_fun = listaEmpresas.FirstOrDefault(x => x.Id_empresa == id_empresaFun);
+            _controllerFuncionario.Salvar(funcionario);
+            mensagem = "Funcionário cadastrado com sucesso!";
+            JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+        }catch(Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            //mensagem = endereco.Logradouro;
+            mensagem = "Ocorreu um erro inesperado ao tentar salvar o Funcionário, por favor tente realizar o procedimento novamente! "+ex.Message;
+            JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+        }
+
+    }
+    string label = "";
+    private async void ValidarCPF()
+    {
+
+        ValidationCPFAttribute validar = new ValidationCPFAttribute();
+        bool valido = validar.IsValid(funcionario.Cpf);
+        if(valido == true)
+        {
+            await this.Existe();
+            label = "";
+        }
+        else
+        {
+            label = "CPF inválido";
+        }                
+
+    }
+
+    private async Task Existe()
+    {
+        try
+        {
+            Funcionario fCPF = await _controllerFuncionario.BuscarCPF(funcionario.Cpf);
+
+            if (fCPF.Id_funcionario != null && fCPF.Id_funcionario > 0)
+            {
+                NavigationManager.NavigateTo("funcionario/editar/" + fCPF.Id_funcionario);
+            }
+        }
+        catch (Exception)
+        {
+
+        }
+
+    }
+
+    private  async Task BuscarLocalidade()
+    {
+        if (funcionario.Endereco_fun.Cep != null && funcionario.Endereco_fun.Cep.Length >= 7)
+        {
+            try
+            {
+                string cepp = funcionario.Endereco_fun.Cep.Replace("-", "");
+                Endereco informacoesCep = new Endereco();
+                string url = "https://viacep.com.br/ws/" + cepp + "/json";
+
+                HttpResponseMessage resposta = await http.GetAsync(url);
+                string json = await resposta.Content.ReadAsStringAsync();
+                informacoesCep = JsonConvert.DeserializeObject<Endereco>(json);
+                if (informacoesCep is not null)
+                {
+                    funcionario.Endereco_fun.Logradouro = informacoesCep.Logradouro;
+                    funcionario.Endereco_fun.Bairro = informacoesCep.Bairro;
+                
+                    Cidade c = cidadesList.FirstOrDefault(x => x.Nome_cid == informacoesCep.Localidade);
+                    if (c != null)
+                    {
+                        funcionario.Endereco_fun.Fk_id_cidades = c.Id_cidade;                       
+                    }
+                    Estado e = estadosList.FirstOrDefault(x => x.Uf_est == informacoesCep.Uf);
+                    if (e != null)
+                    {
+                        id_estadoSelecionado = e.Id_estado;
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                mensagem = "Erro ao buscar a localidade "+ex.Message;
+
+            }
+        }
+
+    }
+
+    private async void ChangeValue(ChangeEventArgs changeEventArgs)
+    {
+        await BuscarLocalidade();
+    }
+
+    void Cancel()
+    {
+        NavigationManager.NavigateTo("funcionarios");
+    }
+
+    private void fecharModal(string elementoID)
+    {
+        funcionario = new Funcionario();
+        JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                 await JSRuntime.InvokeAsync<string>("masksCPF.mascaraCPF", null); 
+                 await JSRuntime.InvokeAsync<string>("masksCep.mascaraCep", null);
+                 await JSRuntime.InvokeAsync<string>("masksTel.mascaratel", null);
+                 await JSRuntime.InvokeAsync<string>("masksTelCasa.mascaratelCasa", null);
+                 //await JSRuntime.InvokeAsync<string>("masksTelTra.mascaratelTra", null);
+            }
+            catch(Exception ex)
+            {
+                mensagem = "Erro ao carregar as máscaras "+ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+    private async Task LoadFiles(InputFileChangeEventArgs e)
+    {
+        arquivoSelecionados = e.GetMultipleFiles();
+        try
+        {
+            foreach (var file in arquivoSelecionados)
+            {
+                if (funcionario.Cpf != null)
+                {
+                    string nomeFoto = funcionario.Cpf.Replace("-", "").Replace(".", "").Replace("/", "");
+                    long maxFileSize = 1024 * 1024 * 2000;
+                    Stream stream = file.OpenReadStream(maxFileSize);
+                    var extensao = Path.GetExtension(file.Name);
+                    var path = $"{env.WebRootPath}/imagens/funcionarios/{nomeFoto}{extensao}";
+                    FileStream fs = File.Create(path);
+                    await stream.CopyToAsync(fs);
+                    imagem = $"imagens/funcionarios/{nomeFoto}{extensao}";
+                    stream.Close();
+                    fs.Close();
+
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            imagem = ex.Message;
+        }
+
+    }
+    
+    private async void FotoCarregarr()
+    {
+        if (funcionario.Cpf != null)
+        {
+            await JSRuntime.InvokeAsync<string>("uploadImg.fotoCarregar", null);
+        }
+        else
+        {
+            await JSRuntime.InvokeAsync<string>("focos.focusById", "cpfCliente");
+        }
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+<!--Código responsável por exibir o modal de confirmação de cadastro ou de erro.-->
+
+<div class="modal fade show" id="myModal" style="display:none; background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+<div class="modal-dialog" role="document">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Cadastro!</h5>
+        </div>
+        <div class="modal-body">
+                <p>@mensagem</p>
+        </div>
+        <div class="modal-footer">
+                <a href="funcionarios"><button type="button" class="btn btn-primary">Voltar a lista</button></a>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("myModal")'>Novo</button>
+        </div>
+    </div>
+</div>
+</div>

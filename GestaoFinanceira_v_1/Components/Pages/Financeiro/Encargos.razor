@@ -1,0 +1,194 @@
+﻿@page "/encargos"
+@inject DispositivoController _dispositivoController
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Encargos Bancários</PageTitle>
+
+<h1><b>Gerenciar Encargos Bancários</b></h1>
+<hr />
+
+<p>Gerencie os encargos bacários de acordo com a operação.</p>
+<EditForm Model="@dispositivo" OnValidSubmit="@Cadastrar" method="post" FormName="cad_encargos">
+    <ObjectGraphDataAnnotationsValidator/>
+    <div class="input-group col-md-12">
+        <div class="form-group col-md-2">
+            <label>Tipo: *</label>
+            <InputSelect @bind-Value="dispositivo.Tipo" class="form-select">
+                <option value="">--Selecionar--</option>
+                @foreach (var situacao in Enum.GetValues(typeof(TipoEncargo)))
+                {
+                    <option value="@situacao">@situacao</option>
+                }
+            </InputSelect>
+        </div>
+        &nbsp   &nbsp
+        <div class="form-group col-md-3">
+            <label>Dispositivo/Banco: *</label>
+            <InputText id="descricaiDis" @bind-Value="dispositivo.Descricao" class="form-control" />
+        </div>
+        &nbsp   &nbsp
+        <div class="form-group col-md-3">
+            <label>Operação: *</label>
+            <InputSelect @bind-Value="dispositivo.Operacao" class="form-select">
+                <option value="">--Selecionar--</option>
+                <option value="Crétido a vista">Crédito à vista</option>
+                <option value="Crétido a vista">Crédito à prazo</option>
+                <option value="Crétido a vista">Débito</option>
+            </InputSelect>
+        </div>
+        &nbsp   &nbsp
+        <div class="form-group col-md-1">
+            <label>Alíquota: *</label>
+            <InputText onkeyup="moedaFormat(this);" id="valorAliquota" placeholder=" Ex. 0,99"
+                       @bind-Value="dispositivo.AlicotaMap" class="form-control" />
+        </div>
+        &nbsp   &nbsp
+        <div class="form-group col-md-2">
+            <br />
+            <button style="z-index:0;" type="submit" class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                @textoBotao <i class="bi bi-plus-circle"></i>
+                </button>
+        </div>
+    </div>
+</EditForm>
+<br />
+<br />
+@if ((ListDispositivos == null || ListDispositivos.Count <= 0) && busca == "")
+{
+    <p><em>Carregando os encargos bancários...</em></p>
+}
+else if ((ListDispositivos == null || ListDispositivos.Count <= 0) && busca != "")
+{
+    <p><em>Encargos bancários não encontrados com a busca!</em></p>
+}
+else
+{
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Tipo</th>
+                <th>Dispositivos</th>
+                <th>Operação</th>
+                <th>Alíquota</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Dispositivo dispositivo in ListDispositivos)
+            {
+                <tr>
+
+                    <td>@dispositivo.Tipo </td>
+                    <td>@dispositivo.Descricao</td>
+                    <td>@dispositivo.Operacao </td>
+                    <td>@dispositivo.Alicota </td>
+                    
+                    <td>
+
+                        <button class="btn btn-primary" @onclick='() => EditarDispositivo(dispositivo.Id_dispositivo)'> <i class="bi bi-pencil"></i></button>
+                        
+                        <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(dispositivo.Id_dispositivo)'><i class="bi bi-trash3-fill"></i></button>
+
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+@code {
+    List<Dispositivo> ListDispositivos = new List<Dispositivo>();
+    Dispositivo dispositivo = new Dispositivo();
+    string filtro = "zerar", busca = "";
+    string editar = "nao";
+    string textoBotao = "ADD";
+    protected override void OnInitialized()
+    {
+        try
+        {
+            ListDispositivos = _dispositivoController.ListarTodosAtivo();
+        }catch(Exception ex)
+        {
+
+        }
+    }
+
+    private void Cadastrar()
+    {
+        try
+        {
+            dispositivo.Ativo = true;
+            dispositivo.Alicota = double.Parse(dispositivo.AlicotaMap);
+            if(editar == "nao")
+            {
+                _dispositivoController.Salvar(dispositivo);
+                statusMensagem.ShowModal("Cadastro!", "Encargo bancário cadastrado com sucesso!");
+                ListDispositivos.Add(dispositivo);
+            }
+            else
+            {
+                _dispositivoController.Atualizar(dispositivo);
+                statusMensagem.ShowModal("Atualização!", "Encargo bancário atualizado com sucesso!");
+                editar = "nao";
+                textoBotao = "ADD";
+            }
+            dispositivo = new Dispositivo();
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", "Erro ao cadastrar o encargo ");
+        }
+    }
+
+    private void EditarDispositivo(int id_dispositivo)
+    {
+        try{
+            editar = "sim";
+            textoBotao = "Atualizar";
+            dispositivo = _dispositivoController.BuscarId(id_dispositivo);
+            dispositivo.AlicotaMap = dispositivo.Alicota.ToString();
+        }catch(Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Ocorreu um erro inesperado ao editar o encargo bancário!");
+        }
+    }
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    Dispositivo dispositivoExcluir = new Dispositivo();
+    protected void ExibirmodalExcluir(int id_dispositivo)
+    {
+        dispositivoExcluir = ListDispositivos.SingleOrDefault(x => x.Id_dispositivo == id_dispositivo);
+        if (dispositivoExcluir != null)
+        {
+            confirmar.ShowModalConfirmacao($"Você tem certeza que deseja excluir o dispositivo {dispositivoExcluir.Descricao} ?");
+        }
+    }
+
+    protected void ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                dispositivoExcluir.Ativo = false;
+                _dispositivoController.Atualizar(dispositivoExcluir);
+                ListDispositivos.Remove(dispositivoExcluir);
+            }
+        }
+        catch (Exception)
+        {
+            statusMensagem.ShowModal("Erro", "Ocorreu um erro inesperado ao excluir o Encargo Bancário!");
+
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+
+    public enum TipoEncargo{ Cartão,Boleto,Pix}
+
+}
+
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />

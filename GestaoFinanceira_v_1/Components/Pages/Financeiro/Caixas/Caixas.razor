@@ -1,0 +1,426 @@
+﻿@page "/caixas"
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@using System.Security.Claims
+@using GestaoFinanceira_v_1.Data
+@inject NavigationManager NavigationManager
+@inject CaixaController _caixaController
+@inject LogCaixaController _logController
+@inject FuncionarioController funcionarioController
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject HttpClient http
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Caixas</PageTitle>
+
+
+<h1><b>Consulta de caixas</b></h1>
+<hr />
+
+<p>Consulte um plano de contas cadastrado no sistema e utilize as opções disponíveis</p>
+
+
+<div class="input-group col-md-12">
+
+    <div class="form-group col-md-7">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown='()=> Filtrar()' @onkeyup='()=> Filtrar()' @onkeypress='()=> Filtrar()' />
+    </div>
+    &nbsp   &nbsp  &nbsp 
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <!--Testar o contexto dos estados aqui-->
+            <option value="status">Status</option>
+            <option value="codigo">Código</option>
+            <option value="tipo">Tipo</option>
+            <option value="abertura">Data de Abertura</option>
+            <option value="fechamento">Data de Fechamento</option>            
+            <option value="funcionario">Funcionário</option>
+            <!--Preencher do banco posteriormente-->
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp 
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='()=> Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+    &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" type="button" @onclick='() =>ShowModalEscolha()' class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                Abrir <i class="bi bi-book"></i>
+            </button>
+        
+    </div>
+</div>
+
+<br />
+
+@if (listaCaixas.Count <= 0 && busca == "")
+{
+    <p><em>Não há caixas registradas</em></p>
+}
+else if ((listaCaixas == null || listaCaixas.Count <= 0) && busca != "")
+{
+    <p><em>Não foi encontrado caixas com o critério de busca</em></p>
+}
+else
+{
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Nº</th>
+                <th>Abertura</th>
+                <th>Saldo Inicial</th>
+                <th>Entradas</th>
+                <th>Saidas</th>
+                <th>Saldo Final</th>
+                <th>Tipo</th>
+                <th>Funcionário</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Caixa c in listaCaixas)
+            {
+                <tr>
+                    <td>@c.Id_caixa</td>
+                    <td>@c.Data_abertura</td>
+                    <td>@c.Saldo_inicial.ToString("C2")</td>
+                    <td>@c.Total_entradas.ToString("C2")</td>
+                    <td>@c.Total_saidas.ToString("C2")</td>
+                    <td>@c.Saldo_final.ToString("C2")</td>
+                    <td>@c.Tipo  @c.BancoCaixa?.Descricao</td>
+                    <td>@c.Funcionario_Caixa.Nome_completo</td>
+                    <td>
+                        <td>
+                        <a href="/caixas/detalhe/@c.Id_caixa">
+                            <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                        </a>
+                    </td>
+                    <td>
+                        @if (c.Status == "Aberto")
+                        {                                
+                            <a href="/caixas/fechar/@c.Id_caixa">
+                                <button class="btn btn-danger"> Fechar <i class="bi bi-book"></i></button>
+                            </a>                      
+                        }           
+                        else
+                        {
+                            <button class="btn btn-primary" @onclick="() => ShowModalReabertura(c)">Reabrir <i class="bi bi-book"></i></button>
+                        }
+                    </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string filtro = "status", busca = "";
+    List<Caixa> listaCaixas = new List<Caixa>();
+    List<Caixa> listaCaixasTotal = new List<Caixa>();
+    Caixa x = new Caixa();
+    ApplicationUser usuario = new ApplicationUser();
+    ClaimsPrincipal user;
+    Funcionario funcLogado;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            /*Pegar o funcionário logado*/
+            string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            //var id_fun = HttpContext.User.FindFirst("Id_funcionario").Value;
+            usuario = UserManager.FindByIdAsync(IdLogado).Result;
+            funcLogado = await funcionarioController.BuscarIDAwait(usuario.Id_funcionario);
+
+            /*Pegar as roles do usuário logado*/
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            user = authState.User;
+            if (user.IsInRole("admin") || user.IsInRole("Admin"))
+            {
+                listaCaixas = _caixaController.ListarTodos(funcLogado.Fk_id_empresa).OrderByDescending(x => x.Id_caixa).ToList();
+                listaCaixasTotal.AddRange(listaCaixas);
+            }
+            else
+            {
+                
+                listaCaixas = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+                listaCaixasTotal.AddRange(listaCaixas);
+            }
+        }catch(Exception ex)
+        {
+            filtro = ex.Message;
+        }
+    }
+
+    private void Filtrar()
+    {
+        listaCaixas.Clear();
+        try
+        {
+            if (filtro == "status")
+            {
+                List<Caixa> listaServicoF = listaCaixasTotal.Where(x => x.Status.ToLower().Contains(busca.ToLower())).ToList();
+                listaCaixas.Clear();
+                listaCaixas.AddRange(listaServicoF);
+            }
+            else if (filtro == "tipo")
+            {
+                List<Caixa> listaServicoF = listaCaixasTotal.Where(c =>
+                    (c.Tipo.ToLower().Contains(busca.ToLower()) || busca.ToLower() == null) ||
+                    (c.BancoCaixa != null && c.BancoCaixa.Descricao.ToLower().Contains(busca.ToLower(), StringComparison.OrdinalIgnoreCase)
+                        || busca.ToLower() == null)).ToList();
+                //List<Caixa> listaServicoF = listaCaixasTotal.Where(x => x.Tipo.ToLower().Contains(busca.ToLower())).ToList();
+                listaCaixas.Clear();
+                listaCaixas.AddRange(listaServicoF);
+            }
+            else if (filtro == "codigo")
+            {
+                List<Caixa> listaServicoF = listaCaixasTotal.Where(x => x.Id_caixa.ToString().ToLower().Contains(busca.ToLower())).ToList();
+                listaCaixas.Clear();
+                listaCaixas.AddRange(listaServicoF);
+
+            }
+            else if (filtro == "abertura")
+            {
+                List<Caixa> listaServicoF = listaCaixasTotal.Where(x => x.Data_abertura.ToString().ToLower().Contains(busca.ToLower())).ToList();
+                listaCaixas.Clear();
+                listaCaixas.AddRange(listaServicoF);
+            }
+            else if (filtro == "fechamento")
+            {
+                List<Caixa> listaServicoF = listaCaixasTotal.Where(x => x.Data_fechamento.ToString().ToLower().Contains(busca.ToLower())).ToList();
+                listaCaixas.Clear();
+                listaCaixas.AddRange(listaServicoF);
+            }
+            else if (filtro == "funcionario")
+            {
+                List<Caixa> listaServicoF = listaCaixasTotal.Where(x => x.Funcionario_Caixa.Nome_completo.ToString().ToLower().Contains(busca.ToLower())).ToList();
+                listaCaixas.Clear();
+                listaCaixas.AddRange(listaServicoF);
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", "Erro ao buscar os caixas!");
+        }
+    }
+
+    Caixa caixaReabrir = new Caixa();
+    /// <summary>
+    /// Show modal de confirmaçã de reabertura.
+    /// </summary>
+    /// <param name="cx">A instância do objeto Caixa a ser reaberto.</param>
+    /// O método irá mostrar o modal com a opção de confirmar ou não a reabertura.
+    private void ShowModalReabertura(Caixa cx)
+    {
+        try
+        {
+            caixaReabrir = cx;
+            //await JSRuntime.InvokeAsync<string>("modal.showModal", "modalTipoCaixa");
+            JSRuntime.InvokeAsync<string>("modal.showModal", "confirmar");
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Reabre um caixa fechado.
+    /// </summary>
+    /// <param name="caixa">A instância do objeto Caixa a ser reaberto.</param>
+    /// O método irá reabrir um caixa fechado e registrar na tabela LogCaixa os dados da operação
+    private async Task AtualizarStatus(Caixa caixa)
+    {        
+        bool x = await _caixaController.VerificarCaixaOperacionalOuBanco(caixa.Fk_id_funcionario, caixa.Tipo, caixa.Fk_id_banco);
+        if (x)
+        {
+            try
+            {
+                caixa.Status = "Aberto";
+                caixa.Data_fechamento = null;
+
+                LogCaixa lcx = new LogCaixa();
+                lcx.Fk_id_caixa = caixa.Id_caixa;
+                lcx.Fk_id_funcionario = caixa.Fk_id_funcionario;
+                lcx.SaldoAtual = caixa.Saldo_final;
+                lcx.Operacao = "Reabertura";
+
+                await _caixaController.AtualizarStatus(caixa);
+                await _logController.Salvar(lcx);
+                fecharModal("confirmar");
+                statusMensagem.ShowModal("Atualizar", "Caixa aberto com sucesso!");
+            }
+            catch (Exception ex)
+            {
+                statusMensagem.ShowModal("Erro!", "Erro ao tentar reabrir o caixa!");
+            }
+        }
+        else
+        {
+            if (caixa.Tipo?.ToLower() == "operacional")
+            {
+                statusMensagem.ShowModal("Erro!","Funcionário já possui caixa operacional aberto!");
+            }
+            else if (caixa.Tipo?.ToLower() == "banco")
+            {
+                statusMensagem.ShowModal("Erro!","Funcionário já possui caixa aberto nesse banco!");
+            }
+        }  
+    }
+
+    Caixa_Cadastro abriCaixaOperacional = new Caixa_Cadastro();
+    private void ShowModalEscolha()
+    {
+        try
+        {
+            //await JSRuntime.InvokeAsync<string>("modal.showModal", "modalTipoCaixa");
+            JSRuntime.InvokeAsync<string>("modal.showModal", "modalTipoCaixa");
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", ex.Message);
+        }
+    }
+
+    private async Task ConfirmarCaixaOperacional(bool confirm)
+    {
+        if (confirm)
+        {
+            try{
+                listaCaixas.Clear();
+                if (user.IsInRole("admin") || user.IsInRole("Admin"))
+                {
+                    listaCaixas = _caixaController.ListarTodos(funcLogado.Fk_id_empresa).OrderByDescending(x => x.Id_caixa).ToList();
+                }
+                else
+                {
+                    listaCaixas = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+                    listaCaixasTotal.AddRange(listaCaixas);
+                }
+                listaCaixasTotal.Clear();
+                listaCaixasTotal.AddRange(listaCaixas);
+                statusMensagem.ShowModal("Cadastro", "Caixa cadastrado com Sucesso!");
+            }catch(Exception ex)
+            {
+
+            }
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                "import", "/script/modal.js");
+        }
+        catch (Exception ex)
+        {
+            // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+            //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+        }
+    }
+
+    private async Task ShowModalCaixa(string tipo)
+    {
+        //Fazer tratamento de exceção e com regra para o a igual a 0
+        long a = listaCaixasTotal.Max(x => x.Id_caixa);
+        fecharModal("modalTipoCaixa");
+        await abriCaixaOperacional.ShowModalCaixa(a + 1, tipo);
+             
+    }
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    private async void fecharModal(string elementoID)
+    {
+        try
+        {
+            await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", elementoID);
+        }
+        catch (Exception ex)
+        {
+
+        }
+    }
+}
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+<Caixa_Cadastro @ref="abriCaixaOperacional" UserChouse="ConfirmarCaixaOperacional" />
+
+<div class="modal fade show" id="modalTipoCaixa" tabindex="-1" role="dialog" style="background-color: rgba(10,10,10,.8);">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header d-flex justify-content-between align-items-center">
+                <h5 class="modal-title mx-auto">Tipo de Caixa para Abertura?</h5>
+                <button type="button" @onclick='eventArgs=>fecharModal("modalTipoCaixa")' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="container">
+                    <div class="row">
+                        <div class="form-group col-md-6 d-flex justify-content-center align-items-center">
+                            <button type="button" class="btn btn-primary" @onclick='() => ShowModalCaixa("Operacional")'>
+                                    Operacional &nbsp   <i class="bi bi-plus-circle"></i>
+                            </button>
+                        </div>
+                        <div class="form-group col-md-6 d-flex justify-content-center align-items-center">
+                            <button type="button" class="btn btn-primary" @onclick='() => ShowModalCaixa("Banco")' data-dismiss="modal">
+                                Banco &nbsp   <i class="bi bi-plus-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!--Modal de confirmação de reabertura de caixa-->
+<div class="modal fade show" id="confirmar" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Excluir!</h5>
+                <button type="button" @onclick='eventArgs=>fecharModal("exampleModal")' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Você tem certeza que deseja reabrir o caixa?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" @onclick="() => AtualizarStatus(caixaReabrir)">Sim</button>
+                <button type="button" class="btn btn-primary" @onclick='eventArgs=>fecharModal("confirmar")'>Não</button>
+            </div>
+        </div>
+    </div>
+</div>

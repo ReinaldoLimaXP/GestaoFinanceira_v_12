@@ -1,0 +1,333 @@
+﻿@using GestaoFinanceira_v_1.Data
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+@inject IWebHostEnvironment env
+@rendermode InteractiveServer
+@inject DespesaController _despesaController
+@inject DispositivoController _dispositivoController
+@inject CaixaController _caixaController
+@inject PlanoContasController _planoController
+@inject HttpClient http
+
+<div class="modal fade show" id="modalPagamento" style="background-color: rgba(10,10,10,.8);" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #898686;">
+                <h4 class="modal-title text-white">
+                    <strong>
+                        &nbsp   &nbsp  Pagar Conta 
+                    </strong>
+                </h4>
+                <button type="button" @onclick='eventArgs=>EscolharModal(false)' class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <EditForm Model="pagamentoDespesa" OnValidSubmit="@Pagar">
+                    <strong>Dados do Pagamento</strong>
+                    <hr class="hrsemEspaco" />
+                    <div class="input-group col-md-12">
+                        <div class="form-group col-md-2">
+                            <label>ID: *</label>
+                            <!--<div class="col-sm-2">-->
+                            <InputNumber disabled id="id_pagamento" class="form-control  form-control" placeholder="" @bind-Value="pagamentoDespesa.Id_despesa" />
+                        </div>
+                        &nbsp  &nbsp &nbsp &nbsp
+                        <div class="form-group col-md-2">
+                            <label>Data: </label>
+                            <InputDate disabled id="dataVenda" @bind-Value="pagamentoDespesa.Datalacamento" class="form-control form-control" />
+                        </div>
+                        <div class="form-group col-md-3">
+                        </div>
+                        &nbsp   &nbsp  &nbsp  
+                        <div class="form-group col-md-4">
+                            <label>Caixa: </label>
+                            <InputSelect required id="vinculo" @bind-Value="pagamentoDespesa.Fk_id_caixa" class="form-select" @onchange="@(e => { ResetarSaldo();})">
+                                @if (pagamentoDespesa.TipoPagamento?.ToLower() != "dinheiro")
+                                {
+                                    <option value="">Selecionar</option>
+                                    @if (caixasAbertoBanco != null)
+                                    {
+                                        @foreach (Caixa cx in caixasAbertoBanco)
+                                        {
+                                            <option value="@cx.Id_caixa"> @cx.Id_caixa - @cx.BancoCaixa?.Descricao</option>
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (caixaOperacional is not null)
+                                    {
+                                        CaixaOperacional();
+                                        <option value="@caixaOperacional.Id_caixa"> @caixaOperacional.Id_caixa - @caixaOperacional.Tipo</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="">Selecionar</option>
+                                    }
+                                }
+                            </InputSelect>
+                        </div>
+                       
+                    </div>
+                    <br />
+                    <div class="input-group col-md-12">
+                        <div class="form-group col-md-5">
+                            <strong>Plano de Conta</strong>
+                            <hr class="hrsemEspaco"/>
+                        </div>
+                        &nbsp   &nbsp  &nbsp &nbsp
+                        <div class="form-group col-md-5">
+                            <strong>Forma de Pagamento</strong>
+                            <hr class="hrsemEspaco" />
+                        </div>
+                    </div>
+                    <div class="input-group col-md-12">
+                        <div class="form-group col-md-5">
+                            <label>Plano de Contas: *</label>
+                            <InputSelect required id="vinculo" @bind-Value="pagamentoDespesa.Fk_id_plano" class="form-select">                                
+                                <option value="">--Selecionar</option>
+                                @foreach(PlanoDeContas p in ListPlanos)
+                                {
+                                    <option value="@p.Id_planoConta">@p.Codigo  &nbsp @p.Descricao</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        &nbsp &nbsp &nbsp &nbsp
+                       
+                        <InputRadioGroup required Name="tipopag" @bind-Value="pagamentoDespesa.TipoPagamento">
+                            <div class=" form-group col-md-2">
+                                <label>Tipo *</label><br />
+                                <InputRadio class="form-check-input cursorpointer" id="@Tipopag[0]" Value="Tipopag[0]" />
+                                <label class="cursorpointer" for="@Tipopag[0]">@Tipopag[0] </label>
+                            </div>
+                            <div class=" form-group col-md-2">
+                                <label></label><br />
+                                <InputRadio class="form-check-input cursorpointer" id="@Tipopag[1]" Value="Tipopag[1]" />
+                                <label class="cursorpointer" for="@Tipopag[1]">@Tipopag[1]</label>
+                            </div>                            
+                        </InputRadioGroup>                       
+                    </div>
+                    <br />
+                    <strong>Parcela</strong>
+                    <hr class="hrsemEspaco" />
+                    <div class="input-group col-md-12">
+                        <table class="table table-sm table-responsive-sm">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Fornecedor</th>
+                                    <th>Vencimento</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>@pagamentoDespesa.Id_despesa</td>
+                                    <td>@pagamentoDespesa.FornecedorDespesa.Nome_fantasia</td>
+                                    <td>@pagamentoDespesa.Vencimento</td>
+                                    <td>@pagamentoDespesa.Valor.ToString("C2")</td>
+                                    <td class="text-danger"> <strong>@pagamentoDespesa.Status_des</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="input-group col-md-12">
+                        <strong>Observação</strong>
+                        <hr />
+                    </div>
+                    <div class="input-group col-md-12">
+                        <div class=" form-group col-md-12">
+                            <label>Observação *</label>
+                            <InputText required id="observacao" class="form-control form-control" placeholder="" @bind-Value="pagamentoDespesa.Observacao" />
+                        </div>
+                    </div>                    
+                    @if (saldoSuficiente && tipoPagamentoSelecionado == pagamentoDespesa.TipoPagamento
+                        && fk_id_caixaSelecionado == pagamentoDespesa.Fk_id_caixa)
+                    {
+                        <br />
+                        <div class="input-group col-md-12">                        
+                            <div class="col-md-12 alert alert-danger d-flex align-items-center" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill ">  
+                                    @mensagemErro
+                                </i>
+                            </div>
+                        </div>
+                    }
+                    <br />
+                    <div class="form-group">
+                        
+                        <button type="button" @onclick='eventArgs=>EscolharModal(false)' class="btn btn-danger">
+                            Voltar &nbsp <i class="bi bi-arrow-left-circle"></i>
+                        </button>
+                        
+                        <button style="float:right"  class="btn-pagamento btn">Pagar &nbsp <i class="bi bi-credit-card"> </i></button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<bool> UserChouse { get; set; }
+    Despesa pagamentoDespesa = new Despesa();
+    Caixa caixaPag = new Caixa();
+    private List<string> Tipopag { get; set; } = new List<string> {
+        "Dinheiro","Pix"};
+    List<PlanoDeContas> ListPlanos = new List<PlanoDeContas>();
+    string ValorAlicotaParcela = "R$ 0.00", mensagemErro;
+    bool saldoSuficiente = false;
+    string? tipoPagamentoSelecionado;
+    long? fk_id_caixaSelecionado;
+    List<Caixa> caixasAbertoBanco = new List<Caixa>();
+    //irá controlar o caixa operacional aberto do usuário
+    Caixa? caixaOperacional = new Caixa();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try{
+            pagamentoDespesa.FornecedorDespesa = new Fornecedor();
+            ListPlanos = await _planoController.ListarPlanosawait();
+            ListPlanos = ListPlanos.Where(x => x.NaturezaConta.ToLower() == "débito").ToList();
+        }catch(Exception ex)
+        {
+
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                 "import", "/script/modal.js");
+            }
+            catch (Exception ex)
+            {
+                // mensagem = "Erro ao carregar as máscaras " + ex.Message;
+                //await JSRuntime.InvokeAsync<string>("modal.showModal", "myModal");
+            }
+
+        }
+    }
+
+
+    public async Task ShowModalPagamento(int id_pagamento, ApplicationUser usuario)
+    {
+        try
+        {
+            pagamentoDespesa = await _despesaController.BuscarIdWait(id_pagamento);
+
+            //caixaPag = await _caixaController.BuscarId(id_caixa);
+
+            caixasAbertoBanco = await _caixaController.ListarUsuario(usuario.Id_funcionario);
+            caixasAbertoBanco = caixasAbertoBanco.Where(
+                x => x.Status.Equals("aberto", StringComparison.InvariantCultureIgnoreCase)
+                && x.Tipo.Equals("banco", StringComparison.InvariantCultureIgnoreCase)).ToList();
+
+            caixaOperacional = await _caixaController.BuscarOperacionalAbertoFuncionario(usuario.Id_funcionario);
+
+            pagamentoDespesa.TipoPagamento = "Dinheiro";
+            ListPlanos = await _planoController.ListarPlanosawait();
+            ListPlanos = ListPlanos.Where(x => x.NaturezaConta.ToLower() == "débito").ToList();
+            //recebimentoParcela = _recebimentoController.BuscarId(id_recebimento);
+            //recebimentoParcela.CaixaRecebimento = caixa;
+            await JSRuntime.InvokeAsync<string>("modal.showModal", "modalPagamento");
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro!", ex.Message);
+        }
+
+    }
+
+
+    public  void EscolharModal(bool valor)
+    {
+        try
+        {
+            JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalPagamento");
+            UserChouse.InvokeAsync(valor);
+        }
+        catch (Exception ex)
+        {
+            statusMensagem.ShowModal("Erro", ex.Message);
+        }
+    }
+
+    public void CaixaOperacional()
+    {
+        pagamentoDespesa.Fk_id_caixa = caixaOperacional.Id_caixa;
+    }
+
+    private void ResetarSaldo()
+    {
+        saldoSuficiente = false;
+        tipoPagamentoSelecionado = null; // ou 0, dependendo da lógica que você deseja
+    }
+
+    public async Task Pagar()
+    {
+        try
+        {
+            Caixa cxP = await _caixaController.BuscarId(pagamentoDespesa.Fk_id_caixa);
+            if (pagamentoDespesa.Valor > cxP.Saldo_final)
+            {
+                //testar lançando exceção!      
+
+                throw new PagamentoException(" Saldo insuficiente no caixa para realizar o pagamento da despesa!");
+            }
+            else
+            {
+                await _despesaController.PagarDespesa(pagamentoDespesa);
+                pagamentoDespesa.Status_des = "Fechado";
+                EscolharModal(true);
+            }
+
+        }catch(PagamentoException ex)
+        {
+            saldoSuficiente = true;
+            mensagemErro = ex.Message;
+            tipoPagamentoSelecionado = pagamentoDespesa.TipoPagamento;
+            fk_id_caixaSelecionado = pagamentoDespesa.Fk_id_caixa;
+        }
+        catch (Exception ex)
+        {            
+            try
+            {
+                // Chamada ao JavaScript para fechar o modal
+               //await JSRuntime.InvokeAsync<string>("modalFechar.fecharModal", "modalPagamento");
+            }
+            catch (Exception jsEx)
+            {
+                // Log ou tratamento de erro específico para JS
+                Console.WriteLine($"Erro ao fechar o modal: {jsEx.Message}");
+            }
+            //throw new Exception(ex.Message);            
+            statusMensagem.ShowModal("Erro", $"Erro ao pagar o valor: {ex.Message}");
+            //EscolharModal(false);
+        }
+    }
+
+
+    private IJSObjectReference? jsModule;
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (jsModule is not null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
+
+

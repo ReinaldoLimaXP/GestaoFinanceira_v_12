@@ -1,0 +1,226 @@
+﻿@page "/despesas"
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor _httpContextAccessor
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@using GestaoFinanceira_v_1.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject DespesaController _controllerDespesas
+@inject FuncionarioController _funcionariosController
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Despesas</PageTitle>
+
+<h1><b>Consulta de Despesas</b></h1>
+<hr />
+
+<p>Consulte uma despesa cadastrada no sistema e utilize as opções disponíveis</p>
+
+<div class="input-group col-md-10">
+    <div class="form-group col-md-6">
+        <label> Texto de busca </label>
+        <InputText @bind-Value="busca" id="idBusca" class="form-control" @onkeydown="@Enter" @onkeyup="@Enter"
+                   @onkeypress="@Enter" />
+    </div>
+    &nbsp   &nbsp  &nbsp
+    <div class="form-group col-md-2">
+        <label> Filtro </label>
+        <InputSelect @bind-Value="filtro" class="form-select">
+            <option value="descricao">Descricão</option>
+            <option value="codigo">Código</option>            
+        </InputSelect>
+    </div>
+    &nbsp   &nbsp &nbsp
+    <div class="form-group col-md-1">
+        <br />
+        <button style="z-index:0;" class="btn btn-secondary" @onclick='() => Filtrar()'>
+            &nbsp <i class="bi bi-search"></i>  &nbsp
+        </button>
+    </div>
+
+    <div class="form-group col-md-2">
+        <br />
+        <a href="/despesa/cadastro">
+            <button style="z-index:0;" class="btn btn-primary" data-toggle="modal" data-target="#modalCad">
+                Novo <i class="bi bi-plus-circle"></i>
+            </button>
+        </a>
+    </div>
+</div>
+
+<br />
+@if ((ListaDespesas == null || ListaDespesas.Count <= 0) && busca == "")
+{
+    <p><em>Carregando as despesas...</em></p>
+}
+else if ((ListaDespesas == null || ListaDespesas.Count <= 0) && busca != "")
+{
+    <p><em>Despesas não encontrados com a busca!</em></p>
+}
+else
+{
+    <table class="table table-sm table-responsive-sm">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Fornecedor</th>
+                <th>Data</th>
+                <th>Valor</th>
+                <th>Descrição</th>
+                <th>Vencimento</th>
+                <th>Opções</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Despesa despesa in ListaDespesas)
+            {
+                <tr>
+
+                    <td>@despesa.Id_despesa </td>
+                    <td>@despesa.FornecedorDespesa.Nome_fantasia</td>
+                    <td>@despesa.Datalacamento </td>
+                    <td>@despesa.Valor.ToString("C2") </td>
+                    <td>@despesa.Descricao </td>
+                    <td>@despesa.Vencimento </td>
+                    <td>
+                    <td>
+                        <a href="/despesa/imprimir/@despesa.Id_despesa">
+                            <button class="btn-olho btn"><i class="bi bi-eye-fill"></i></button>
+                        </a>
+                    </td>
+                    <td>
+
+                        @if(despesa.Status_des == "Aberto")
+                        {
+                            <a href="/despesa/editar/@despesa.Id_despesa">
+                            <button class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                            </a>
+                        }
+                        else
+                        {
+                            <button disabled class="btn btn-primary"> <i class="bi bi-pencil"></i></button>
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-danger" @onclick='() => ExibirmodalExcluir(despesa.Id_despesa)'><i class="bi bi-trash3-fill"></i></button>
+                    </td>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string filtro = "descricao", busca = "";
+    List<Despesa> ListaDespesas{ get; set; }
+    List<Despesa> ListaDespesas2 { get; set; }
+    ApplicationUser? usuario = new ApplicationUser();
+    Funcionario funcionario = new Funcionario();
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            /*Pegar o funcionário logado*/
+            string IdLogado = _httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            //var id_fun = HttpContext.User.FindFirst("Id_funcionario").Value;
+            usuario = await UserManager.FindByIdAsync(IdLogado);
+            funcionario = await _funcionariosController.BuscarIDAwait(usuario.Id_funcionario);
+
+            ListaDespesas2 = new List<Despesa>();
+            ListaDespesas = await _controllerDespesas.ListarDespesasEmpresaawait(funcionario.Fk_id_empresa);
+            ListaDespesas = ListaDespesas.OrderByDescending(x => x.Datalacamento).ToList();
+            ListaDespesas2.AddRange(ListaDespesas);
+        }catch(Exception ex)
+        {
+
+        }
+    }
+
+    private async Task Filtrar()
+    {
+
+        ListaDespesas.Clear();
+        ListaDespesas.AddRange(ListaDespesas2);
+        try
+        {
+            if (filtro == "descricao")
+            {
+                List<Despesa> listaDespesaT = ListaDespesas.Where(x => x.Descricao.ToLower().Contains(busca.ToLower())).ToList();
+                ListaDespesas.Clear();
+                ListaDespesas.AddRange(listaDespesaT);
+            }
+            else
+            {
+                List<Despesa> listaDespesaT = ListaDespesas.Where(x => x.Id_despesa.ToString().Contains(busca.ToLower())).ToList();
+                ListaDespesas.Clear();
+                ListaDespesas.AddRange(listaDespesaT);
+            }
+        }
+        catch (Exception)
+        {
+
+        }
+    }
+
+    public void Enter(KeyboardEventArgs e)
+    {
+        this.Filtrar();
+    }
+
+    private void CheckChanged()
+    {
+        this.Filtrar();
+    }
+
+    protected ConfirmacaoExcluir confirmar = new ConfirmacaoExcluir();
+    Despesa despesaExcluir = new Despesa();
+    protected void ExibirmodalExcluir(int id_despesa)
+    {
+        despesaExcluir = ListaDespesas.SingleOrDefault(x => x.Id_despesa == id_despesa);
+        if (despesaExcluir != null)
+        {
+            confirmar.ShowModalConfirmacao($"Você tem certeza que deseja excluir a despesa {despesaExcluir.Descricao} ?");
+        }
+    }
+
+    protected void ConfirmarExclusao(bool confirm)
+    {
+        try
+        {
+            if (confirm)
+            {
+                if(despesaExcluir.Status_des == "Aberto")
+                {
+                    _controllerDespesas.Deletar(despesaExcluir.Id_despesa);
+                    ListaDespesas.Remove(despesaExcluir);
+                }
+                else
+                {
+                    MensagemModal("Atenção", "Essa despesa não pode ser excluida, pois já foi feito o pagamento, cancele o pagamento para realizar a exclusão!");
+                }
+
+            }
+        }
+        catch (Exception)
+        {
+            MensagemModal("Erro", "Ocorreu um erro inesperado ao excluir o veículo!");
+        }
+    }
+
+    protected StatusMensagem statusMensagem = new StatusMensagem();
+    protected void MensagemModal(string titulo, string mensagem)
+    {
+        statusMensagem.ShowModal(titulo, mensagem);
+    }
+
+    /*Esse método fiz apenas para usar o evento e parar o erro, pode ser usado para redirecionar posteriormente
+     * Pode ser usado para receber retornos
+     */
+    protected void ConfirmarMensagem(bool confirm) { }
+}
+
+<ConfirmacaoExcluir @ref="@confirmar" UserChouse="ConfirmarExclusao" />
+
+<StatusMensagem @ref="statusMensagem" UserChouse="ConfirmarMensagem" />
