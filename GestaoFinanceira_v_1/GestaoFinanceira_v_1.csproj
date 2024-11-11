@@ -23,7 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Relatorios\Financeiro\" />
     <Folder Include="wwwroot\RelatoriosTemp\" />
   </ItemGroup>
 

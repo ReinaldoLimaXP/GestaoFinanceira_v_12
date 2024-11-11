@@ -32,6 +32,10 @@ namespace GestaoFinanceira_v_1.Utilitarios
 
                 }
 
+                foreach (var item in RelatorioCaixa)
+                {
+                    item.TotalMovimento = MovimentoCaixa.Sum(m => m.Valor);
+                }
 
                 var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"Relatorios\Caixa\RelCaixaCompleto.frx");
                 if (!File.Exists(filePath))
@@ -96,6 +100,10 @@ namespace GestaoFinanceira_v_1.Utilitarios
 
                 }
 
+                foreach (var item in RelatorioCaixa)
+                {
+                    item.TotalMovimento = MovimentoCaixa.Sum(m => m.Valor);
+                }
 
                 var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"Relatorios\Caixa\RelCaixaResumido.frx");
                 if (!File.Exists(filePath))
@@ -141,6 +149,353 @@ namespace GestaoFinanceira_v_1.Utilitarios
             }
 
         }//fim do método GerarRelatórioCaixaResumido
+
+
+        public async Task GerarRelatorioRecebimentosCompleto(List<Caixa> caixas, NavigationManager nav, IJSRuntime jsRuntime, DateOnly dataInicio, DateOnly dataFinal)
+        {
+            List<Movimento> MovimentoCaixa = new List<Movimento>();
+            List<CaixaRelatorio> RelatorioCaixa = new List<CaixaRelatorio>();
+            try
+            {
+                
+                foreach (var item in caixas)
+                {
+                    CaixaRelatorio caixaRelatorio = new CaixaRelatorio(item);
+                    caixaRelatorio.DataInicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.DataFim = dataFinal.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.EmissorDoRelatorio = nomeUsuario;
+                    MovimentoCaixa.AddRange(caixaRelatorio.Movimentos.Where(m => m.Classificacao=="ENTRADA" && m.Origem!= "Sangria Destino").ToList());
+                    RelatorioCaixa.Add(caixaRelatorio);
+
+                }
+
+
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"Relatorios\Recebimentos\RelRecebimentoCompleto.frx");
+                if (!File.Exists(filePath))
+                {
+                    var report = new FastReport.Report();
+                    report.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                    report.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                    report.Report.Save(filePath);
+
+                }
+
+                foreach (var item in RelatorioCaixa)
+                {
+                    item.TotalMovimento = MovimentoCaixa.Sum(m => m.Valor);
+                }
+
+                var report1 = new FastReport.Report();
+                report1.Report.Load(filePath);
+                report1.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                report1.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                report1.Prepare();
+                using var pdfExport = new FastReport.Export.PdfSimple.PDFSimpleExport();
+                using var reportStream = new MemoryStream();
+                pdfExport.Export(report1, reportStream);
+
+                var fileName = $"RelRecebimentos_{Guid.NewGuid()}.pdf";
+                var filePathTemp = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "RelatoriosTemp", fileName);
+
+                // Cria a pasta se não existir
+                Directory.CreateDirectory(Path.GetDirectoryName(filePathTemp));
+
+                // Salva o arquivo PDF temporariamente na pasta wwwroot/RelatoriosTemp
+                File.WriteAllBytes(filePathTemp, reportStream.ToArray());
+
+                // Gera a URL para o arquivo temporário
+                var url = nav.ToAbsoluteUri($"/RelatoriosTemp/{fileName}");
+
+                //// Abre o relatório em uma nova guia
+                //nav.NavigateTo(url.ToString(), true);
+
+                await jsRuntime.InvokeVoidAsync("NovaGuia", url.ToString()); //alteração 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Erro aqui!: " + ex.Message.ToString());
+                throw new Exception(ex.Message);
+
+            }
+
+        }//fim do método GerarRelatórioRecebimentos
+
+        public async Task GerarRelatorioRecebimentosResumido(List<Caixa> caixas, NavigationManager nav, IJSRuntime jsRuntime, DateOnly dataInicio, DateOnly dataFinal)
+        {
+            List<Movimento> MovimentoCaixa = new List<Movimento>();
+            List<CaixaRelatorio> RelatorioCaixa = new List<CaixaRelatorio>();
+            try
+            {
+
+                foreach (var item in caixas)
+                {
+                    CaixaRelatorio caixaRelatorio = new CaixaRelatorio(item);
+                    caixaRelatorio.DataInicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.DataFim = dataFinal.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.EmissorDoRelatorio = nomeUsuario;
+                    MovimentoCaixa.AddRange(caixaRelatorio.Movimentos.Where(m => m.Classificacao == "ENTRADA" && m.Origem != "Sangria Destino").ToList());
+                    RelatorioCaixa.Add(caixaRelatorio);
+
+                }
+
+                foreach (var item in RelatorioCaixa)
+                {
+                    item.TotalMovimento = MovimentoCaixa.Sum(m => m.Valor);
+                }
+
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"Relatorios\Recebimentos\RelRecebimentoResumido.frx");
+                if (!File.Exists(filePath))
+                {
+                    var report = new FastReport.Report();
+                    report.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                    report.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                    report.Report.Save(filePath);
+
+                }
+
+                var report1 = new FastReport.Report();
+                report1.Report.Load(filePath);
+                report1.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                report1.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                report1.Prepare();
+                using var pdfExport = new FastReport.Export.PdfSimple.PDFSimpleExport();
+                using var reportStream = new MemoryStream();
+                pdfExport.Export(report1, reportStream);
+
+                var fileName = $"RelRecebimentosRes_{Guid.NewGuid()}.pdf";
+                var filePathTemp = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "RelatoriosTemp", fileName);
+
+                // Cria a pasta se não existir
+                Directory.CreateDirectory(Path.GetDirectoryName(filePathTemp));
+
+                // Salva o arquivo PDF temporariamente na pasta wwwroot/RelatoriosTemp
+                File.WriteAllBytes(filePathTemp, reportStream.ToArray());
+
+                // Gera a URL para o arquivo temporário
+                var url = nav.ToAbsoluteUri($"/RelatoriosTemp/{fileName}");
+
+                //// Abre o relatório em uma nova guia
+                //nav.NavigateTo(url.ToString(), true);
+
+                await jsRuntime.InvokeVoidAsync("NovaGuia", url.ToString()); //alteração 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Erro aqui!: " + ex.Message.ToString());
+                throw new Exception(ex.Message);
+
+            }
+
+        }//fim do método GerarRelatórioRecebimentosResumido
+
+        //############################################################################################
+        public async Task GerarRelatorioPagamentosCompleto(List<Caixa> caixas, NavigationManager nav, IJSRuntime jsRuntime, DateOnly dataInicio, DateOnly dataFinal)
+        {
+            List<Movimento> MovimentoCaixa = new List<Movimento>();
+            List<CaixaRelatorio> RelatorioCaixa = new List<CaixaRelatorio>();
+            try
+            {
+
+                foreach (var item in caixas)
+                {
+                    CaixaRelatorio caixaRelatorio = new CaixaRelatorio(item);
+                    caixaRelatorio.DataInicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.DataFim = dataFinal.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.EmissorDoRelatorio = nomeUsuario;
+                    MovimentoCaixa.AddRange(caixaRelatorio.Movimentos.Where(m => m.Classificacao == "SAÍDA" && m.Origem != "Sangria Origem").ToList());
+                    RelatorioCaixa.Add(caixaRelatorio);
+
+                }
+
+                foreach (var item in RelatorioCaixa)
+                {
+                    item.TotalMovimento = MovimentoCaixa.Sum(m => m.Valor);
+                }
+
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"Relatorios\Pagamentos\RelPagamentoCompleto.frx");
+                if (!File.Exists(filePath))
+                {
+                    var report = new FastReport.Report();
+                    report.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                    report.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                    report.Report.Save(filePath);
+
+                }
+
+                var report1 = new FastReport.Report();
+                report1.Report.Load(filePath);
+                report1.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                report1.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                report1.Prepare();
+                using var pdfExport = new FastReport.Export.PdfSimple.PDFSimpleExport();
+                using var reportStream = new MemoryStream();
+                pdfExport.Export(report1, reportStream);
+
+                var fileName = $"RelRecebimentos_{Guid.NewGuid()}.pdf";
+                var filePathTemp = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "RelatoriosTemp", fileName);
+
+                // Cria a pasta se não existir
+                Directory.CreateDirectory(Path.GetDirectoryName(filePathTemp));
+
+                // Salva o arquivo PDF temporariamente na pasta wwwroot/RelatoriosTemp
+                File.WriteAllBytes(filePathTemp, reportStream.ToArray());
+
+                // Gera a URL para o arquivo temporário
+                var url = nav.ToAbsoluteUri($"/RelatoriosTemp/{fileName}");
+
+                //// Abre o relatório em uma nova guia
+                //nav.NavigateTo(url.ToString(), true);
+
+                await jsRuntime.InvokeVoidAsync("NovaGuia", url.ToString()); //alteração 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Erro aqui!: " + ex.Message.ToString());
+                throw new Exception(ex.Message);
+
+            }
+
+        }//fim do método GerarRelatórioPagamentos
+
+        public async Task GerarRelatorioPagamentosResumido(List<Caixa> caixas, NavigationManager nav, IJSRuntime jsRuntime, DateOnly dataInicio, DateOnly dataFinal)
+        {
+            List<Movimento> MovimentoCaixa = new List<Movimento>();
+            List<CaixaRelatorio> RelatorioCaixa = new List<CaixaRelatorio>();
+            try
+            {
+
+                foreach (var item in caixas)
+                {
+                    CaixaRelatorio caixaRelatorio = new CaixaRelatorio(item);
+                    caixaRelatorio.DataInicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.DataFim = dataFinal.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.EmissorDoRelatorio = nomeUsuario;
+                    MovimentoCaixa.AddRange(caixaRelatorio.Movimentos.Where(m => m.Classificacao == "SAÍDA" && m.Origem != "Sangria Origem").ToList());
+                    RelatorioCaixa.Add(caixaRelatorio);
+
+                }
+
+                foreach (var item in RelatorioCaixa)
+                {
+                    item.TotalMovimento = MovimentoCaixa.Sum(m => m.Valor);
+                }
+
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"Relatorios\Pagamentos\RelPagamentoResumido.frx");
+                if (!File.Exists(filePath))
+                {
+                    var report = new FastReport.Report();
+                    report.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                    report.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                    report.Report.Save(filePath);
+
+                }
+
+                var report1 = new FastReport.Report();
+                report1.Report.Load(filePath);
+                report1.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                report1.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                report1.Prepare();
+                using var pdfExport = new FastReport.Export.PdfSimple.PDFSimpleExport();
+                using var reportStream = new MemoryStream();
+                pdfExport.Export(report1, reportStream);
+
+                var fileName = $"RelRecebimentos_{Guid.NewGuid()}.pdf";
+                var filePathTemp = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "RelatoriosTemp", fileName);
+
+                // Cria a pasta se não existir
+                Directory.CreateDirectory(Path.GetDirectoryName(filePathTemp));
+
+                // Salva o arquivo PDF temporariamente na pasta wwwroot/RelatoriosTemp
+                File.WriteAllBytes(filePathTemp, reportStream.ToArray());
+
+                // Gera a URL para o arquivo temporário
+                var url = nav.ToAbsoluteUri($"/RelatoriosTemp/{fileName}");
+
+                //// Abre o relatório em uma nova guia
+                //nav.NavigateTo(url.ToString(), true);
+
+                await jsRuntime.InvokeVoidAsync("NovaGuia", url.ToString()); //alteração 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Erro aqui!: " + ex.Message.ToString());
+                throw new Exception(ex.Message);
+
+            }
+
+        }//fim do método GerarRelatórioPagamento Resumido
+
+        public async Task GerarRelatorioDespesasAPagar(List<Caixa> caixas, NavigationManager nav, IJSRuntime jsRuntime, DateOnly dataInicio, DateOnly dataFinal)
+        {
+            List<Movimento> MovimentoCaixa = new List<Movimento>();
+            List<CaixaRelatorio> RelatorioCaixa = new List<CaixaRelatorio>();
+            try
+            {
+
+                foreach (var item in caixas)
+                {
+                    CaixaRelatorio caixaRelatorio = new CaixaRelatorio(item);
+                    caixaRelatorio.DataInicio = dataInicio.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.DataFim = dataFinal.ToDateTime(TimeOnly.MinValue);
+                    caixaRelatorio.EmissorDoRelatorio = nomeUsuario;
+                    MovimentoCaixa.AddRange(caixaRelatorio.Movimentos.Where(m => m.Classificacao == "SAÍDA" && m.Origem != "Sangria Origem").ToList());
+                    RelatorioCaixa.Add(caixaRelatorio);
+                }
+
+                MovimentoCaixa = MovimentoCaixa.Where(mc=>mc.DataEfetivado == null).ToList();
+
+                foreach (var item in RelatorioCaixa)
+                {
+                    item.TotalMovimento = MovimentoCaixa.Sum(m => m.Valor); 
+                }
+
+                
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), @"Relatorios\Pagamentos\RelDespesasAPagar.frx");
+                if (!File.Exists(filePath))
+                {
+                    var report = new FastReport.Report();
+                    report.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                    report.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                    report.Report.Save(filePath);
+
+                }
+
+                var report1 = new FastReport.Report();
+                report1.Report.Load(filePath);
+                report1.Dictionary.RegisterBusinessObject(RelatorioCaixa, "RelatorioCaixa", 10, true);
+                report1.Dictionary.RegisterBusinessObject(MovimentoCaixa, "MovimentoCaixa", 10, true);
+                report1.Prepare();
+                using var pdfExport = new FastReport.Export.PdfSimple.PDFSimpleExport();
+                using var reportStream = new MemoryStream();
+                pdfExport.Export(report1, reportStream);
+
+                var fileName = $"RelRecebimentos_{Guid.NewGuid()}.pdf";
+                var filePathTemp = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "RelatoriosTemp", fileName);
+
+                // Cria a pasta se não existir
+                Directory.CreateDirectory(Path.GetDirectoryName(filePathTemp));
+
+                // Salva o arquivo PDF temporariamente na pasta wwwroot/RelatoriosTemp
+                File.WriteAllBytes(filePathTemp, reportStream.ToArray());
+
+                // Gera a URL para o arquivo temporário
+                var url = nav.ToAbsoluteUri($"/RelatoriosTemp/{fileName}");
+
+                //// Abre o relatório em uma nova guia
+                //nav.NavigateTo(url.ToString(), true);
+
+                await jsRuntime.InvokeVoidAsync("NovaGuia", url.ToString()); //alteração 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Erro aqui!: " + ex.Message.ToString());
+                throw new Exception(ex.Message);
+
+            }
+
+        }//fim do método GerarRelatórioPagamento Resumido
+
+        //##########################################################################################
 
         public async Task GerarRelatorioFinanceiro(List<Caixa> caixas, NavigationManager nav, IJSRuntime jsRuntime, DateOnly dataInicio, DateOnly dataFinal, string? filtro)
         {
@@ -400,13 +755,12 @@ namespace GestaoFinanceira_v_1.Utilitarios
 
             }
 
-        }//fim do método GerarRelatórioCaixaResumido
-
+        }//fim do método GerarRelatórioFiannceiro
 
 
     }
 
-
+   
 
     public class CaixaRelatorio
     {
@@ -437,6 +791,7 @@ namespace GestaoFinanceira_v_1.Utilitarios
         public string? NumeroCaixa { get; set; }
         public string? MesAno {  get; set; }    
         public List<Movimento>? Movimentos { get; set; }
+        public decimal? TotalMovimento { get; set; }    
 
         public CaixaRelatorio(Caixa caixa)
         {
@@ -452,8 +807,8 @@ namespace GestaoFinanceira_v_1.Utilitarios
             MovimentoSaidaEncargos(caixa);
             Id = caixa.Id_caixa;
             Fechamento = caixa.Data_fechamento?.ToDateTime(TimeOnly.MinValue);//Fechamento = caixa.Data_fechamento.Value.ToDateTime(TimeOnly.MinValue);
-            HorarioAbertura = caixa.Data_abertura.Value.ToDateTime(TimeOnly.MinValue).TimeOfDay;
-            HorarioFechamento = caixa.Data_fechamento?.ToDateTime(TimeOnly.MinValue).TimeOfDay;
+            HorarioAbertura = caixa.Horaabertura;
+            HorarioFechamento = caixa.Horafechamento; 
             ResponsavelVenda = caixa.Funcionario_Caixa.Nome_completo;
             TipoOperacional = caixa.Tipo;
             if (caixa.Tipo == "Banco" && caixa.BancoCaixa!=null) TipoOperacional = TipoOperacional +" "+caixa.BancoCaixa.Descricao;
@@ -503,6 +858,11 @@ namespace GestaoFinanceira_v_1.Utilitarios
                     movimento.ValorRelatorio = Convert.ToDecimal(item.ValorParcela);
                     movimento.DataInicio = DataInicio;
                     movimento.DataFim = DataFim;
+                    if(item.Fk_id_dispositivo_rec!=null) movimento.Dispositivo = item.DispositivoRec.Descricao;
+                    if(item.Fk_id_dispositivo_rec != null) movimento.CustoDispositivo = Convert.ToDecimal(item.AliquotaParcela);
+                    if(item.DataVencimento!=null) movimento.Vencimento = item.DataVencimento.ToDateTime(TimeOnly.MinValue);
+                    movimento.DataEfetivado = item.DataPagamento.ToDateTime(TimeOnly.MinValue);
+                    movimento.HorarioEfetivado = item.HoraPagamento; 
                     Movimentos.Add(movimento);
                 }
             }
@@ -560,6 +920,10 @@ namespace GestaoFinanceira_v_1.Utilitarios
                     movimento.ValorRelatorio = Convert.ToDecimal(item.Valor);
                     movimento.DataInicio = DataInicio;
                     movimento.DataFim = DataFim;
+                    movimento.DataEfetivado = item.DataPagamento?.ToDateTime(TimeOnly.MinValue);
+                    movimento.HorarioEfetivado = item.HoraPagamento;
+                    if (item.Vencimento != null) movimento.Vencimento = item.Vencimento?.ToDateTime(TimeOnly.MinValue);
+                    movimento.FornecedorDespesa = item.FornecedorDespesa?.Nome_fantasia; 
                     Movimentos.Add(movimento);
 
                 }
@@ -623,7 +987,13 @@ namespace GestaoFinanceira_v_1.Utilitarios
                             movimento.PlanoDeConta = "2.9 Encargo Bancário";
                             movimento.ValorRelatorio = Convert.ToDecimal(valorAliq);
                             movimento.DataInicio = DataInicio;
-                            movimento.DataFim = DataFim;    
+                            movimento.DataFim = DataFim;
+                            movimento.Dispositivo = item.DispositivoRec.Descricao;
+                            movimento.CustoDispositivo = Convert.ToDecimal(valorAliq);
+                            movimento.DataEfetivado = item.DataPagamento.ToDateTime(TimeOnly.MinValue);
+                            movimento.HorarioEfetivado = item.HoraPagamento;
+                            if (item.DataVencimento != null) movimento.Vencimento = item.DataVencimento.ToDateTime(TimeOnly.MinValue);
+                            movimento.FornecedorDespesa = item.DispositivoRec.Descricao;
                             Movimentos.Add(movimento);
                         }
                     }
@@ -703,6 +1073,11 @@ namespace GestaoFinanceira_v_1.Utilitarios
         public DateTime? DataInicio { get; set; }
         public DateTime? DataFim { get; set; }
         public string? NomeDoEmissor { get; set; }
-
+        public string? Dispositivo { get; set; }//máquina da operação 
+        public decimal? CustoDispositivo { get; set; }//custo da operação de receboimento
+        public DateTime? Vencimento { get; set; } 
+        public DateTime? DataEfetivado { get; set; } //data de pagamento ou recebimento
+        public TimeSpan? HorarioEfetivado{ get; set; } //horário de pagamento ou recebimento
+        public string? FornecedorDespesa { get; set; }
 }
 }

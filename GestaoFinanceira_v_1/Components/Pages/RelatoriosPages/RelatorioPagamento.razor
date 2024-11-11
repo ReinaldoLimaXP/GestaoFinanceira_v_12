@@ -3,11 +3,20 @@
 @using System.ComponentModel.DataAnnotations.Schema
 @using GestaoFinanceira_v_1.Components.Shared
 @using GestaoFinanceira_v_1.Utilitarios
+@inject CaixaController _caixas
 @inject FuncionarioController _funcionarioController
+@inject PlanoContasController _planoController
+@inject HttpClient http
+@inject NavigationManager nav
 @rendermode InteractiveServer
-@inject IJSRuntime JSRuntime
+@inject IJSRuntime JSRuntime 
 @implements IAsyncDisposable
 
+<script>
+    function NovaGuia(url) {
+        window.open(url, '_blank');
+    }
+</script>
 
 <div>
     <div class="col-md-8">
@@ -82,7 +91,20 @@
 
     public async Task Emitir()
     {
-
+        ImpressaoCaixa imprimir = new ImpressaoCaixa();
+        var relatorio = await _caixas.ListarCaixaPorPeriodo(e.DataInicio, e.DataFim);
+        if(e.Tipo == "Despesas em Aberto")
+        {
+            await imprimir.GerarRelatorioDespesasAPagar(relatorio, nav, JSRuntime, e.DataInicio, e.DataFim);
+        }
+        else
+        {
+            if (e.Formato == 1)
+                await imprimir.GerarRelatorioPagamentosResumido(relatorio, nav, JSRuntime, e.DataInicio, e.DataFim);
+            else
+                await imprimir.GerarRelatorioPagamentosCompleto(relatorio, nav, JSRuntime, e.DataInicio, e.DataFim);
+        } 
+        
     }
 
     private IJSObjectReference? jsModule;

@@ -175,6 +175,7 @@ namespace GestaoFinanceira_v_1.Controllers
                     .Include(c => c.BancoCaixa)
                     .Include(c => c.SangriaDestinos)
                     .Include(c => c.SangriaOrigem)
+                    .Include(c => c.DespesasdoCaixa).ThenInclude(p => p.FornecedorDespesa)
                     .Include(c => c.DespesasdoCaixa).ThenInclude(p=>p.PlanoPag)
                     .Include(c=>c.RecebimentosdoCaixa).ThenInclude(p=>p.Plano)
                     .Include(c => c.RecebimentosdoCaixa).ThenInclude(d => d.DispositivoRec)
